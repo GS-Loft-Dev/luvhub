@@ -81,6 +81,7 @@ export function convertPages(pages: RenderedPage[], options: ConvertOptions): Th
     return {
       route: page.route,
       label: page.title?.trim() || titleCase(routeSlug),
+      sourceTitle: page.title?.trim() || undefined,
       description: page.description?.trim() || undefined,
       templateName: uniqueName(routeSlug, templateNames),
       wrapperOpen: plan.wrappers.map((w) => escapeHublDelimiters(openTag(w))),

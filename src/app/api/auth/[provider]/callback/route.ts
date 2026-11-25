@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
 import { HttpError, handle } from "@/lib/http";
+import { GITHUB_TOKEN_URL, githubLogin } from "@/lib/integrations/github";
 import { HUBSPOT_TOKEN_URL, tokenInfo } from "@/lib/integrations/hubspot";
 import { requestToken } from "@/lib/integrations/oauth";
 import { getSession } from "@/lib/session";
@@ -15,7 +16,7 @@ export const GET = handle(async (req: Request, ctx: { params: Promise<{ provider
   delete session.oauth;
 
   const back = (status: string) => {
-    const url = new URL("/", config.appUrl());
+    const url = new URL(pending?.returnTo ?? "/", config.appUrl());
     url.searchParams.set("auth", `${provider}:${status}`);
     return NextResponse.redirect(url);
   };
@@ -31,7 +32,15 @@ export const GET = handle(async (req: Request, ctx: { params: Promise<{ provider
   }
   const redirectUri = `${config.appUrl()}/api/auth/${provider}/callback`;
 
-  if (provider === "hubspot") {
+  if (provider === "github") {
+    const tokens = await requestToken(GITHUB_TOKEN_URL, {
+      client_id: config.github.clientId(),
+      client_secret: config.github.clientSecret(),
+      redirect_uri: redirectUri,
+      code,
+    });
+    session.github = { ...tokens, login: await githubLogin(tokens.accessToken) };
+  } else if (provider === "hubspot") {
     const tokens = await requestToken(HUBSPOT_TOKEN_URL, {
       grant_type: "authorization_code",
       client_id: config.hubspot.clientId(),

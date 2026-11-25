@@ -1,21 +1,41 @@
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
 import { HttpError, handle } from "@/lib/http";
+import { GITHUB_AUTHORIZE_URL } from "@/lib/integrations/github";
 import { HUBSPOT_AUTHORIZE_URL } from "@/lib/integrations/hubspot";
 import { pkceChallenge } from "@/lib/integrations/oauth";
 import { getSession, randomToken } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export const GET = handle(async (_req: Request, ctx: { params: Promise<{ provider: string }> }) => {
+/** Only same-site paths, so the login can't be used as an open redirect. */
+function safeReturn(raw: string | null): string | undefined {
+  return raw && /^\/(?!\/)[\w\-./?=&%#]*$/.test(raw) ? raw : undefined;
+}
+
+export const GET = handle(async (req: Request, ctx: { params: Promise<{ provider: string }> }) => {
   const { provider } = await ctx.params;
   const session = await getSession();
   const state = randomToken();
   const redirectUri = `${config.appUrl()}/api/auth/${provider}/callback`;
+  const returnTo = safeReturn(new URL(req.url).searchParams.get("return"));
+
+  if (provider === "github") {
+    if (!config.github.oauthEnabled()) throw new HttpError(400, "GitHub OAuth is not configured on this server.");
+    session.oauth = { provider, state, returnTo };
+    await session.save();
+    const url = new URL(GITHUB_AUTHORIZE_URL);
+    url.searchParams.set("client_id", config.github.clientId());
+    url.searchParams.set("redirect_uri", redirectUri);
+    url.searchParams.set("scope", config.github.scopes());
+    url.searchParams.set("state", state);
+    url.searchParams.set("allow_signup", "true");
+    return NextResponse.redirect(url);
+  }
 
   if (provider === "hubspot") {
     if (!config.hubspot.oauthEnabled()) throw new HttpError(400, "HubSpot OAuth is not configured on this server.");
-    session.oauth = { provider, state };
+    session.oauth = { provider, state, returnTo };
     await session.save();
     const url = new URL(HUBSPOT_AUTHORIZE_URL);
     url.searchParams.set("client_id", config.hubspot.clientId());
@@ -28,7 +48,7 @@ export const GET = handle(async (_req: Request, ctx: { params: Promise<{ provide
   if (provider === "lovable") {
     if (!config.lovable.oauthEnabled()) throw new HttpError(400, "Lovable OAuth is not configured on this server.");
     const verifier = randomToken(48);
-    session.oauth = { provider, state, verifier };
+    session.oauth = { provider, state, verifier, returnTo };
     await session.save();
     const url = new URL(config.lovable.authorizeUrl());
     url.searchParams.set("response_type", "code");

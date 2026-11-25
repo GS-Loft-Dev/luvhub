@@ -520,3 +520,28 @@ pre.code code { background: none; border: 0; padding: 0; color: inherit; }
 }
 @media (max-width: 760px) { .steps { display: none; } .brand-word { display: none; } }
 .node-title em { white-space: nowrap; }
+
+/* ======================================================= sync panel */
+.modal.sync { width: min(720px, 100%); gap: 6px; }
+.num-badge { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 5px; background: #fff; color: #111; font-size: 9.5px; font-weight: 600; }
+.sync-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, 260px); gap: 12px; align-items: center; }
+.sync-row.dim { opacity: 0.5; }
+.sync-row .sn { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #2c2c30; color: var(--ink-2); font-size: 10px; }
+.sync-row b { display: block; font-size: 12px; font-weight: 500; margin-bottom: 2px; }
+.sync-row small { display: block; color: var(--muted); font-size: 10.5px; line-height: 1.5; }
+.sync-row small a, .sync-warn a { color: var(--ink); }
+.sync-row small.warn { color: var(--warn); }
+.sync-field { display: grid; gap: 6px; justify-items: stretch; }
+.sync-field .mini-tabs { justify-self: start; }
+.sync-who { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; color: var(--ink-2); }
+.dot-ok { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px rgb(79 224 138 / 0.8); }
+.sync-warn { font-size: 11px; line-height: 1.55; color: #ffd9a8; border-color: rgb(255 181 71 / 0.25); background: rgb(255 181 71 / 0.06); }
+.sync-warn b { color: #ffe2bd; }
+.sync-err { font-size: 11px; color: #ffc2c2; border-color: rgb(255 80 80 / 0.35); background: rgb(255 80 80 / 0.08); }
+.sync-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sync-done { display: grid; gap: 12px; justify-items: start; }
+.sync-done .copy { margin: 0; color: var(--ink-2); font-size: 11.5px; line-height: 1.6; }
+.tag-ok { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 6px; background: #8ff0b1; color: #063b1a; font-size: 10.5px; font-weight: 500; }
+.tag-ok svg { width: 11px; height: 11px; }
+button.nf:disabled { opacity: 0.55; cursor: not-allowed; }
+@media (max-width: 640px) { .sync-row { grid-template-columns: 22px minmax(0, 1fr); } .sync-row > :last-child { grid-column: 1 / -1; } }

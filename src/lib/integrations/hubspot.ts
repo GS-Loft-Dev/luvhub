@@ -42,6 +42,11 @@ export async function hubspotConnection(session: SessionData & { save?: () => Pr
   }
   const token = config.hubspot.accessToken();
   if (!token) return null;
+  return connectionFromToken(token);
+}
+
+/** A connection from a private app token (server setting, or the GitHub Action's secret). */
+export async function connectionFromToken(token: string): Promise<HubSpotConnection> {
   const details = await api<{ portalId: number; uiDomain?: string }>(token, "/account-info/v3/details");
   return { token, portalId: details.portalId, hubDomain: details.uiDomain };
 }
@@ -142,7 +147,12 @@ export interface SitePageInput {
  * on an earlier publish. Returns the page id. Pages stay drafts: going live is
  * the editor's call in HubSpot.
  */
-export async function upsertSitePage(conn: HubSpotConnection, page: SitePageInput, existingId?: string): Promise<string> {
+export async function upsertSitePage(
+  conn: HubSpotConnection,
+  page: SitePageInput,
+  existingId?: string,
+  opts: { resetContent?: boolean } = {},
+): Promise<string> {
   const body = JSON.stringify({
     name: page.name,
     htmlTitle: page.htmlTitle,
@@ -155,11 +165,15 @@ export async function upsertSitePage(conn: HubSpotConnection, page: SitePageInpu
   if (existingId) {
     try {
       // Update only the head fields: the editor's content changes stay.
-      const { name, htmlTitle, metaDescription } = JSON.parse(body) as Record<string, string>;
+      const { name, htmlTitle, metaDescription, templatePath } = JSON.parse(body) as Record<string, string>;
+      // Sync mode: Lovable is the source. The page follows the template again
+      // and drops what it stored on its own (module values edited in HubSpot,
+      // drag-and-drop content from an earlier non-sync publish).
+      const reset = opts.resetContent ? { templatePath, widgets: {}, layoutSections: {} } : {};
       await api(conn.token, `/cms/v3/pages/site-pages/${encodeURIComponent(existingId)}`, {
         method: "PATCH",
         headers,
-        body: JSON.stringify({ name, htmlTitle, metaDescription }),
+        body: JSON.stringify({ name, htmlTitle, metaDescription, ...reset }),
       });
       return existingId;
     } catch (e) {

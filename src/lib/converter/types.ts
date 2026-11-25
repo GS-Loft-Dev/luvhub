@@ -67,6 +67,8 @@ export interface PageDef {
   route: string;
   /** Page title: the source <title>, editable in the review step. Becomes the HubSpot page name and HTML title. */
   label: string;
+  /** The source <title> as captured, so an edited title can be told apart from the original. */
+  sourceTitle?: string;
   /** Source <meta name="description">, copied to the HubSpot page. */
   description?: string;
   /** Id of the HubSpot site page created from this template, so republishing updates it. */
@@ -90,6 +92,12 @@ export interface AssetRef {
 export interface ThemeModel {
   name: string;
   label: string;
+  /**
+   * "dnd" (default): sections go in a drag-and-drop area editors can rearrange.
+   * "sync": sections are fixed template modules, so every publish reaches the
+   * existing pages; used when a GitHub Action keeps HubSpot in sync with Lovable.
+   */
+  layout?: "dnd" | "sync";
   htmlLang: string;
   /** Attributes of the source <body>, serialized. */
   bodyAttrs: string;

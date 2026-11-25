@@ -48,6 +48,18 @@ export const config = {
     sourceCodeBase: () => env("HUBSPOT_SOURCE_CODE_BASE", "/cms/v3/source-code"),
     oauthEnabled: () => Boolean(env("HUBSPOT_CLIENT_ID") && env("HUBSPOT_CLIENT_SECRET")),
   },
+
+  github: {
+    clientId: () => env("GITHUB_CLIENT_ID"),
+    clientSecret: () => env("GITHUB_CLIENT_SECRET"),
+    // "workflow" is needed to write .github/workflows/luvhub.yml.
+    scopes: () => env("GITHUB_SCOPES", "repo workflow"),
+    /** Server-wide token instead of OAuth (single-team instances). */
+    token: () => env("LUVHUB_GITHUB_TOKEN"),
+    /** The Action the generated workflow uses. Pin a tag for production. */
+    actionRef: () => env("LUVHUB_ACTION_REF", "GS-Loft-Dev/luvhub@main"),
+    oauthEnabled: () => Boolean(env("GITHUB_CLIENT_ID") && env("GITHUB_CLIENT_SECRET")),
+  },
 };
 
 /** What the UI may know about the server setup (no secrets). */
@@ -57,6 +69,8 @@ export function publicSetup() {
     lovableApiKey: Boolean(config.lovable.apiKey()),
     hubspotOAuth: config.hubspot.oauthEnabled(),
     hubspotToken: Boolean(config.hubspot.accessToken()),
+    githubOAuth: config.github.oauthEnabled(),
+    githubToken: Boolean(config.github.token()),
     embedAvailable: config.appUrl().startsWith("https://"),
   };
 }

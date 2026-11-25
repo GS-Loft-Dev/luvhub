@@ -9,6 +9,7 @@ export const POST = handle(async (_req: Request, ctx: { params: Promise<{ provid
   const session = await getSession();
   if (provider === "hubspot") delete session.hubspot;
   if (provider === "lovable") delete session.lovable;
+  if (provider === "github") delete session.github;
   await session.save();
   return NextResponse.json({ ok: true });
 });

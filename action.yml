@@ -1,0 +1,58 @@
+name: luvhub sync
+description: Keep HubSpot pages in sync with a Lovable project. Rebuilds the site, converts it into a HubSpot theme and updates the same draft pages on every change.
+author: GS-Loft-Dev
+branding:
+  icon: refresh-cw
+  color: orange
+
+inputs:
+  hubspot-token:
+    description: HubSpot private app token with the "content" and "files" scopes. Pass it from a repository secret.
+    required: true
+  config:
+    description: Path of the luvhub configuration file, relative to the repository root.
+    default: luvhub.json
+  force:
+    description: Publish even when nothing changed since the last sync.
+    default: "false"
+  commit:
+    description: Commit the updated configuration (HubSpot page ids, last sync) back to the repository.
+    default: "true"
+
+outputs:
+  status:
+    description: published, unchanged or failed.
+    value: ${{ steps.sync.outputs.status }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install luvhub
+      shell: bash
+      run: npm ci --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
+
+    - name: Sync with HubSpot
+      id: sync
+      shell: bash
+      env:
+        HUBSPOT_ACCESS_TOKEN: ${{ inputs.hubspot-token }}
+        LUVHUB_CONFIG: ${{ inputs.config }}
+        LUVHUB_FORCE: ${{ inputs.force }}
+      run: node "$GITHUB_ACTION_PATH/node_modules/tsx/dist/cli.mjs" "$GITHUB_ACTION_PATH/scripts/luvhub-sync.ts"
+
+    - name: Save page ids
+      if: ${{ always() && inputs.commit == 'true' }}
+      shell: bash
+      env:
+        LUVHUB_CONFIG: ${{ inputs.config }}
+      run: |
+        if git diff --quiet -- "$LUVHUB_CONFIG"; then exit 0; fi
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add -- "$LUVHUB_CONFIG"
+        git commit -m "luvhub: update HubSpot sync state [skip ci]"
+        git push

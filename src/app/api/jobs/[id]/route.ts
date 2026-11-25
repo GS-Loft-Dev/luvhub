@@ -15,6 +15,7 @@ function summary(job: Job) {
     id: job.id,
     source: job.source,
     createdAt: job.createdAt,
+    automation: job.automation ?? null,
     theme: { name: model.name, label: model.label },
     warnings: model.warnings,
     assets: model.assets.length,

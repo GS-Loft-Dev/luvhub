@@ -113,6 +113,20 @@ function pageTemplate(model: ThemeModel, templateName: string, includedIds: Set<
       push(node.open);
       depth++;
     }
+    if (model.layout === "sync") {
+      // Fixed modules: the template is the single source of the page layout,
+      // so a later publish updates every page built on it.
+      for (const id of node.moduleIds) {
+        const mod = byId.get(id);
+        if (!mod || !includedIds.has(mod.id)) continue;
+        push(`{% module "${mod.name.replace(/-/g, "_")}" path="../modules/${mod.name}" label="${mod.label}" %}`);
+      }
+      if (node.close) {
+        depth--;
+        push(node.close);
+      }
+      continue;
+    }
     push(`{% dnd_area "${node.areaName}" label="Main content" %}`);
     depth++;
     for (const id of node.moduleIds) {

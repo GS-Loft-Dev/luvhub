@@ -15,7 +15,8 @@ export interface SessionData {
   sid?: string;
   hubspot?: OAuthTokens & { portalId: number; hubDomain?: string };
   lovable?: OAuthTokens;
-  oauth?: { provider: "hubspot" | "lovable"; state: string; verifier?: string; returnTo?: string };
+  github?: OAuthTokens & { login: string };
+  oauth?: { provider: "hubspot" | "lovable" | "github"; state: string; verifier?: string; returnTo?: string };
 }
 
 export async function getSession(): Promise<IronSession<SessionData>> {

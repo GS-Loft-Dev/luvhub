@@ -65,6 +65,35 @@ my-landing/
     └── site-footer.module/
 ```
 
+## Keep HubSpot in sync with Lovable
+
+After a conversion, node **5 Sync** in the dashboard sets up a GitHub Action in the repository Lovable syncs your project to (in Lovable: GitHub, Connect project). From then on every edit in Lovable, which Lovable pushes to that repository, updates the same HubSpot pages: sections, texts, images and titles.
+
+The dashboard does it in one panel:
+
+1. **Connect GitHub** (OAuth, scopes `repo` and `workflow`).
+2. **Pick the repository.**
+3. **Choose when:** after every edit (the Action builds the project) or after Publish in Lovable (the Action reads the live site).
+4. **Paste a HubSpot private app token** (scopes `content` and `files`). It goes straight into the encrypted `LUVHUB_HUBSPOT_TOKEN` repository secret; luvhub doesn't keep it.
+
+luvhub then commits two files to the repository:
+
+- `luvhub.json`: routes, theme name, excluded modules, edited titles and the HubSpot page ids. The Action updates the ids and the last sync after each run.
+- `.github/workflows/luvhub.yml`: runs on every push to the default branch and by hand from the Actions tab (with *force* to republish).
+
+Each run builds or opens the site with Chrome, converts it with the saved choices, and publishes only when something changed. The run summary links the HubSpot pages.
+
+> **Lovable becomes the source.** Synced pages use fixed sections instead of a drag-and-drop area, so every sync reaches them. Content edited in HubSpot on those pages is replaced at the next sync. SEO settings and the URL stay yours, and pages stay drafts until you publish them in HubSpot.
+
+You can also use the Action without the dashboard:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: GS-Loft-Dev/luvhub@main
+  with:
+    hubspot-token: ${{ secrets.LUVHUB_HUBSPOT_TOKEN }}
+```
+
 ## Quick start
 
 ### Docker

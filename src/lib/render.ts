@@ -129,6 +129,10 @@ async function renderOne(browser: Browser, opts: RenderOptions, route: string): 
   const timeout = opts.timeoutMs ?? (Number(process.env.RENDER_TIMEOUT_MS) || 45_000);
   const viewport = opts.viewport ?? { width: 1440, height: 900 };
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
+  // Some TypeScript runners (tsx, used by the GitHub Action) wrap functions in
+  // a __name() helper that is then missing inside the page when they are
+  // passed to evaluate(). A no-op stand-in keeps them working everywhere.
+  await context.addInitScript({ content: "globalThis.__name = globalThis.__name || ((fn) => fn);" });
   const page = await context.newPage();
   page.setDefaultTimeout(timeout);
   const target = routeUrl(opts.url, route);

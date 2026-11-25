@@ -144,6 +144,7 @@ export async function publishToHubSpot(
           language: model.htmlLang?.slice(0, 2) || undefined,
         },
         existing,
+        { resetContent: model.layout === "sync" },
       );
       page.hubspotPageId = id;
       pages.push({ ...base, status: existing === id ? "updated" : "created", id, editUrl: pageEditorUrl(conn.portalId, id) });
