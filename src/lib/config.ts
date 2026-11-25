@@ -1,6 +1,22 @@
 /** Reads configuration from the environment. Server-only. */
 
+import { randomBytes } from "node:crypto";
+
 const env = (name: string, fallback = ""): string => process.env[name]?.trim() || fallback;
+
+/**
+ * Local development works without any setup: when SESSION_SECRET is missing
+ * outside production, a random secret is made once per dev server (kept on
+ * globalThis so hot reloads don't log everyone out). Production still requires it.
+ */
+function devSecret(): string {
+  const g = globalThis as { __luvhubDevSecret?: string };
+  if (!g.__luvhubDevSecret) {
+    g.__luvhubDevSecret = randomBytes(32).toString("base64url");
+    console.warn("[luvhub] SESSION_SECRET is not set: using a temporary secret for development. Set it in .env.local to keep logins across restarts.");
+  }
+  return g.__luvhubDevSecret;
+}
 
 export const config = {
   // On Netlify, URL is the primary site URL (https) and is available to functions.
@@ -8,8 +24,9 @@ export const config = {
   dataDir: () => env("DATA_DIR", "./.data"),
   sessionSecret: () => {
     const s = env("SESSION_SECRET");
-    if (s.length < 32) throw new Error("SESSION_SECRET must be set to at least 32 characters.");
-    return s;
+    if (s.length >= 32) return s;
+    if (process.env.NODE_ENV !== "production" && !s) return devSecret();
+    throw new Error("SESSION_SECRET must be set to at least 32 characters.");
   },
 
   lovable: {

@@ -12,6 +12,12 @@ export const HUBSPOT_TOKEN_URL = `${API}/oauth/v1/token`;
 
 export class HubSpotAuthError extends Error {}
 
+export class HubSpotHttpError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
 export interface HubSpotConnection {
   token: string;
   portalId: number;
@@ -54,7 +60,7 @@ async function api<T>(token: string, path: string, init: RequestInit = {}): Prom
   const res = await fetch(`${API}${path}`, { ...init, headers });
   if (res.status === 401) throw new HubSpotAuthError("HubSpot session expired, please log in again.");
   const text = await res.text();
-  if (!res.ok) throw new Error(describeError(res.status, text));
+  if (!res.ok) throw new HubSpotHttpError(res.status, describeError(res.status, text));
   return (text ? JSON.parse(text) : {}) as T;
 }
 
@@ -120,6 +126,54 @@ export async function uploadFile(
   const url = res.url ?? res.defaultHostingUrl;
   if (!url) throw new Error(`HubSpot did not return a URL for ${file.name}.`);
   return url;
+}
+
+export interface SitePageInput {
+  name: string;
+  htmlTitle: string;
+  slug: string;
+  templatePath: string;
+  metaDescription?: string;
+  language?: string;
+}
+
+/**
+ * Creates a draft site page from a theme template, or updates the one created
+ * on an earlier publish. Returns the page id. Pages stay drafts: going live is
+ * the editor's call in HubSpot.
+ */
+export async function upsertSitePage(conn: HubSpotConnection, page: SitePageInput, existingId?: string): Promise<string> {
+  const body = JSON.stringify({
+    name: page.name,
+    htmlTitle: page.htmlTitle,
+    slug: page.slug,
+    templatePath: page.templatePath,
+    metaDescription: page.metaDescription ?? "",
+    ...(page.language ? { language: page.language } : {}),
+  });
+  const headers = { "content-type": "application/json" };
+  if (existingId) {
+    try {
+      // Update only the head fields: the editor's content changes stay.
+      const { name, htmlTitle, metaDescription } = JSON.parse(body) as Record<string, string>;
+      await api(conn.token, `/cms/v3/pages/site-pages/${encodeURIComponent(existingId)}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ name, htmlTitle, metaDescription }),
+      });
+      return existingId;
+    } catch (e) {
+      // Deleted in HubSpot since the last publish: create it again.
+      if (!(e instanceof HubSpotHttpError && e.status === 404)) throw e;
+    }
+  }
+  const created = await api<{ id?: string | number }>(conn.token, "/cms/v3/pages/site-pages", { method: "POST", headers, body });
+  if (created.id === undefined || created.id === null) throw new Error("HubSpot did not return the new page id.");
+  return String(created.id);
+}
+
+export function pageEditorUrl(portalId: number, pageId: string): string {
+  return `https://app.hubspot.com/pages/${portalId}/editor/${pageId}/content`;
 }
 
 export function designManagerUrl(portalId: number): string {

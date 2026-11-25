@@ -18,7 +18,13 @@ function summary(job: Job) {
     theme: { name: model.name, label: model.label },
     warnings: model.warnings,
     assets: model.assets.length,
-    pages: model.pages.map((p) => ({ route: p.route, label: p.label, templateName: p.templateName })),
+    pages: model.pages.map((p) => ({
+      route: p.route,
+      label: p.label,
+      description: p.description ?? "",
+      templateName: p.templateName,
+      hubspotPageId: p.hubspotPageId ?? null,
+    })),
     modules: model.modules.map((m) => ({
       id: m.id,
       name: m.name,
@@ -41,6 +47,7 @@ export const GET = handle(async (_req: Request, ctx: Ctx) => NextResponse.json(s
 interface Patch {
   theme?: { name?: string; label?: string };
   modules?: { id: string; name?: string; label?: string; included?: boolean }[];
+  pages?: { route: string; label?: string }[];
 }
 
 export const PATCH = handle(async (req: Request, ctx: Ctx) => {
@@ -67,6 +74,11 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
       }
       mod.name = name;
     }
+  }
+
+  for (const change of patch.pages ?? []) {
+    const page = job.model.pages.find((p) => p.route === change.route);
+    if (page && change.label !== undefined) page.label = change.label.trim().slice(0, 255) || page.label;
   }
 
   await saveJob(job);

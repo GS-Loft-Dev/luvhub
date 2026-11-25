@@ -329,6 +329,7 @@ async function capturePage() {
 
   return {
     title: document.title,
+    description: document.querySelector('meta[name="description"]')?.getAttribute("content")?.trim() ?? "",
     html: document.documentElement.outerHTML,
     css,
     headLinks: [...headLinks],

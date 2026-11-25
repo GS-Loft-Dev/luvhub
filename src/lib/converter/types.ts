@@ -65,7 +65,12 @@ export type LayoutNode =
 
 export interface PageDef {
   route: string;
+  /** Page title: the source <title>, editable in the review step. Becomes the HubSpot page name and HTML title. */
   label: string;
+  /** Source <meta name="description">, copied to the HubSpot page. */
+  description?: string;
+  /** Id of the HubSpot site page created from this template, so republishing updates it. */
+  hubspotPageId?: string;
   /** File name without extension, inside templates/. */
   templateName: string;
   /** Opening tags of the wrappers around the sections, outermost first. */
@@ -103,6 +108,7 @@ export interface RenderedPage {
   route: string;
   url: string;
   title: string;
+  description?: string;
   html: string;
   css: string;
   headLinks: string[];

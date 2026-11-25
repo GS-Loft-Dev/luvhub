@@ -3,7 +3,9 @@ import { writeTheme, type ThemeFiles } from "./converter/theme";
 import type { ThemeModel } from "./converter/types";
 import {
   designManagerUrl,
+  pageEditorUrl,
   putSourceFile,
+  upsertSitePage,
   uploadFile,
   validateSourceFile,
   type HubSpotConnection,
@@ -15,12 +17,28 @@ export interface PublishStep {
   error?: string;
 }
 
+export interface PublishedPage {
+  route: string;
+  title: string;
+  status: "created" | "updated" | "failed" | "skipped";
+  id?: string;
+  editUrl?: string;
+  error?: string;
+}
+
 export interface PublishResult {
   ok: boolean;
   portalId: number;
   themePath: string;
   designManagerUrl: string;
   steps: PublishStep[];
+  pages: PublishedPage[];
+}
+
+/** HubSpot slug for a source route, kept under the theme name so it never takes over the portal's home page. */
+export function pageSlug(themeName: string, route: string): string {
+  const rest = route.replace(/^\/+|\/+$/g, "");
+  return rest ? `${themeName}/${rest}` : themeName;
 }
 
 /** Upload order: definitions before the files that reference them. */
@@ -102,12 +120,45 @@ export async function publishToHubSpot(
     steps.push(...results);
   }
 
+  // 3. One draft HubSpot page per source page, titled like the Lovable page.
+  //    Ids are written back on the model so a later publish updates them.
+  const failedPaths = new Set(steps.filter((s) => s.status === "failed").map((s) => s.path));
+  const pages: PublishedPage[] = [];
+  for (const page of model.pages) {
+    const templatePath = `${model.name}/templates/${page.templateName}.html`;
+    const base = { route: page.route, title: page.label };
+    if (failedPaths.has(templatePath)) {
+      pages.push({ ...base, status: "skipped", error: "Its template failed to upload." });
+      continue;
+    }
+    try {
+      const existing = page.hubspotPageId;
+      const id = await upsertSitePage(
+        conn,
+        {
+          name: page.label,
+          htmlTitle: page.label,
+          slug: pageSlug(model.name, page.route),
+          templatePath,
+          metaDescription: page.description,
+          language: model.htmlLang?.slice(0, 2) || undefined,
+        },
+        existing,
+      );
+      page.hubspotPageId = id;
+      pages.push({ ...base, status: existing === id ? "updated" : "created", id, editUrl: pageEditorUrl(conn.portalId, id) });
+    } catch (e) {
+      pages.push({ ...base, status: "failed", error: (e as Error).message });
+    }
+  }
+
   return {
-    ok: steps.every((s) => s.status !== "failed"),
+    ok: steps.every((s) => s.status !== "failed") && pages.every((p) => p.status !== "failed" && p.status !== "skipped"),
     portalId: conn.portalId,
     themePath: model.name,
     designManagerUrl: designManagerUrl(conn.portalId),
     steps,
+    pages,
   };
 }
 

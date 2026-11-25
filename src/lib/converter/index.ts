@@ -80,7 +80,8 @@ export function convertPages(pages: RenderedPage[], options: ConvertOptions): Th
     const routeSlug = page.route === "/" ? "home" : slugify(page.route.replace(/\//g, " "), 6) || "page";
     return {
       route: page.route,
-      label: page.title || titleCase(routeSlug),
+      label: page.title?.trim() || titleCase(routeSlug),
+      description: page.description?.trim() || undefined,
       templateName: uniqueName(routeSlug, templateNames),
       wrapperOpen: plan.wrappers.map((w) => escapeHublDelimiters(openTag(w))),
       wrapperClose: plan.wrappers.map(closeTag).reverse(),

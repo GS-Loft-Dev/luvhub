@@ -1,5 +1,5 @@
 {
-  "name": "lovable-to-hubspot",
+  "name": "luvhub",
   "version": "0.1.0",
   "description": "Self-hostable web app that turns a Lovable project into an editable HubSpot CMS theme and publishes it, with Lovable and HubSpot login.",
   "scripts": {
