@@ -74,6 +74,15 @@ describe("luvhub.json", () => {
     expect(next.modules.find((m) => m.name === "features")!.included).toBe(false);
   });
 
+  it("keeps the page type: landing pages unless the file says website pages", () => {
+    const base = { version: 1, source: { type: "build" }, routes: ["/"], theme: { name: "acme" } };
+    expect(applyConfig(convertPages([page()], { themeName: "acme" }), parseConfig(JSON.stringify(base))).pageType).toBe("landing");
+    expect(applyConfig(convertPages([page()], { themeName: "acme" }), parseConfig(JSON.stringify({ ...base, pageType: "site" }))).pageType).toBe("site");
+    expect(() => parseConfig(JSON.stringify({ ...base, pageType: "blog" }))).toThrow('"pageType"');
+    const model = convertPages([page()], { themeName: "acme" });
+    expect(configFromModel(model, { type: "build" }).pageType).toBe("landing");
+  });
+
   it("follows the Lovable title when it wasn't edited", () => {
     const c: LuvhubConfig = { version: 1, source: { type: "build" }, routes: ["/"], theme: { name: "acme", label: "Acme" }, pages: {}, exclude: [] };
     const model = applyConfig(convertPages([page("New title from Lovable")], { themeName: "acme" }), c);
@@ -160,7 +169,7 @@ describe.skipIf(!hasChrome)("runSync end to end", () => {
       calls.push({ url, method: init.method ?? "GET", body: typeof init.body === "string" ? init.body : undefined });
       if (url.endsWith("/account-info/v3/details")) return Response.json({ portalId: 42 });
       if (url.endsWith("/files/v3/files")) return Response.json({ url: "https://cdn.example/x.png" });
-      if (url.endsWith("/cms/v3/pages/site-pages") && init.method === "POST") return Response.json({ id: "501" });
+      if (url.endsWith("/cms/v3/pages/landing-pages") && init.method === "POST") return Response.json({ id: "501" });
       return new Response("", { status: 200 });
     });
 
@@ -171,7 +180,7 @@ describe.skipIf(!hasChrome)("runSync end to end", () => {
     expect(first.status).toBe("published");
     expect(first.config.pages["/"].hubspotPageId).toBe("501");
     expect(first.config.lastSync?.portalId).toBe(42);
-    const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/site-pages"));
+    const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/landing-pages"));
     expect(JSON.parse(created!.body!)).toMatchObject({ name: "Spa Test", htmlTitle: "Spa Test", templatePath: "spa/templates/home.html" });
     const template = calls.find((c) => c.url.includes("/published/content/spa/templates/home.html"));
     expect(template).toBeTruthy();
@@ -183,8 +192,8 @@ describe.skipIf(!hasChrome)("runSync end to end", () => {
 
     const third = await runSync({ ...opts, config: first.config, force: true });
     expect(third.status).toBe("published");
-    const patch = calls.find((c) => c.method === "PATCH" && c.url.endsWith("/site-pages/501"));
+    const patch = calls.find((c) => c.method === "PATCH" && c.url.endsWith("/landing-pages/501"));
     expect(JSON.parse(patch!.body!)).toMatchObject({ name: "Spa Test", templatePath: "spa/templates/home.html", widgets: {}, layoutSections: {} });
-    expect(calls.some((c) => c.method === "POST" && c.url.endsWith("/site-pages"))).toBe(false);
+    expect(calls.some((c) => c.method === "POST" && c.url.endsWith("/landing-pages"))).toBe(false);
   }, 90_000);
 });

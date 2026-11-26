@@ -1,4 +1,4 @@
-import type { ThemeModel } from "../converter/types";
+import { DEFAULT_PAGE_TYPE, type PageType, type ThemeModel } from "../converter/types";
 
 /**
  * luvhub.json: what the GitHub Action needs to rebuild the same theme and
@@ -9,17 +9,17 @@ import type { ThemeModel } from "../converter/types";
 export interface LuvhubConfig {
   version: 1;
   /**
-   * "build": build the project in the repository (every Lovable edit).
+   * "build": build the project in the repository (every Lovable edit). `outDir`
+   * is the static output (found automatically); `serveCommand` serves a
+   * server-rendered app instead, with {port} for the port (default: vite
+   * preview, then vite).
    * "url": render the published site (changes after Publish in Lovable).
-   */
-  /**
-   * build: install, build and render the project. `outDir` is the static output
-   * (found automatically); `serveCommand` serves a server-rendered app instead,
-   * with {port} for the port (default: vite preview, then vite).
    */
   source: { type: "build"; command?: string; outDir?: string; serveCommand?: string } | { type: "url"; url: string };
   routes: string[];
   theme: { name: string; label: string };
+  /** HubSpot page type: "landing" pages (default) or website ("site") pages. */
+  pageType?: PageType;
   /** Per route: a title that overrides the source <title>, and the HubSpot page id. */
   pages: Record<string, { title?: string; hubspotPageId?: string }>;
   /** Module folder names to leave out. */
@@ -51,11 +51,13 @@ export function parseConfig(text: string): LuvhubConfig {
     fail('"routes" must list paths like "/" or "/about".');
   }
   if (!c.theme || typeof c.theme.name !== "string" || !c.theme.name.trim()) fail('"theme.name" is required.');
+  if (c.pageType !== undefined && c.pageType !== "landing" && c.pageType !== "site") fail('"pageType" must be "landing" or "site".');
   return {
     version: 1,
     source: src!,
     routes: [...new Set(c.routes!)],
     theme: { name: c.theme!.name.trim(), label: (c.theme!.label ?? c.theme!.name).trim() },
+    ...(c.pageType ? { pageType: c.pageType } : {}),
     pages: c.pages && typeof c.pages === "object" ? c.pages : {},
     exclude: Array.isArray(c.exclude) ? c.exclude.filter((e) => typeof e === "string") : [],
     lastSync: c.lastSync,
@@ -72,6 +74,7 @@ export function serializeConfig(c: LuvhubConfig): string {
  */
 export function applyConfig(model: ThemeModel, c: LuvhubConfig): ThemeModel {
   model.layout = "sync";
+  model.pageType = c.pageType ?? DEFAULT_PAGE_TYPE;
   model.name = c.theme.name;
   model.label = c.theme.label || model.label;
   const excluded = new Set(c.exclude);
@@ -111,6 +114,7 @@ export function configFromModel(model: ThemeModel, source: LuvhubConfig["source"
     source,
     routes: model.pages.map((p) => p.route),
     theme: { name: model.name, label: model.label },
+    pageType: model.pageType ?? DEFAULT_PAGE_TYPE,
     pages,
     exclude: model.modules.filter((m) => !m.included).map((m) => m.name),
   };

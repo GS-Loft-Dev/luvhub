@@ -41,7 +41,7 @@ describe("publishToHubSpot", () => {
     const calls = mockFetch((url) =>
       url.endsWith("/files/v3/files")
         ? Response.json({ url: "https://123.fs1.hubspotusercontent-eu1.net/hubfs/123/a1-gym.jpg" })
-        : url.endsWith("/cms/v3/pages/site-pages")
+        : url.endsWith("/cms/v3/pages/landing-pages")
           ? Response.json({ id: "1" })
           : new Response("", { status: 200 }),
     );
@@ -54,7 +54,7 @@ describe("publishToHubSpot", () => {
     expect(writes[0]).toBe("acme/theme.json");
     expect(writes.indexOf("acme/modules/hero.module/meta.json")).toBeLessThan(writes.indexOf("acme/modules/hero.module/module.html"));
     expect(writes.at(-1)).toBe("acme/templates/home.html");
-    expect(calls.at(-1)).toEqual({ url: "https://api.hubapi.com/cms/v3/pages/site-pages", method: "POST" });
+    expect(calls.at(-1)).toEqual({ url: "https://api.hubapi.com/cms/v3/pages/landing-pages", method: "POST" });
     expect(calls.some((c) => c.url.endsWith("/published/validate/acme/templates/home.html") && c.method === "POST")).toBe(true);
     expect(result.designManagerUrl).toBe("https://app.hubspot.com/design-manager/123");
   });
@@ -107,7 +107,7 @@ describe("HubSpot pages", () => {
   it("creates a draft page per source page, titled like the Lovable page", async () => {
     const bodies: Record<string, unknown>[] = [];
     mockFetch((url, init) => {
-      if (url.endsWith("/cms/v3/pages/site-pages") && init.method === "POST") {
+      if (url.endsWith("/cms/v3/pages/landing-pages") && init.method === "POST") {
         bodies.push(JSON.parse(String(init.body)));
         return Response.json({ id: "9001" });
       }
@@ -137,7 +137,7 @@ describe("HubSpot pages", () => {
 
     const patched: string[] = [];
     mockFetch((url, init) => {
-      if (url.endsWith("/site-pages/9001") && init.method === "PATCH") {
+      if (url.endsWith("/landing-pages/9001") && init.method === "PATCH") {
         patched.push(String(init.body));
         return Response.json({ id: "9001" });
       }
@@ -148,12 +148,42 @@ describe("HubSpot pages", () => {
     expect(JSON.parse(patched[0])).toEqual({ name: "Nuovo titolo", htmlTitle: "Nuovo titolo", metaDescription: "La palestra di quartiere." });
 
     mockFetch((url, init) => {
-      if (url.endsWith("/site-pages/9001")) return Response.json({ message: "Not found" }, { status: 404 });
-      if (url.endsWith("/site-pages") && init.method === "POST") return Response.json({ id: 9002 });
+      if (url.endsWith("/landing-pages/9001")) return Response.json({ message: "Not found" }, { status: 404 });
+      if (url.endsWith("/landing-pages") && init.method === "POST") return Response.json({ id: 9002 });
       return new Response("", { status: 200 });
     });
     const recreated = await publishToHubSpot(conn, m, new Map());
     expect(recreated.pages[0]).toMatchObject({ status: "created", id: "9002" });
+  });
+
+  it("creates website pages when chosen, and a new page of the new type when the type changed", async () => {
+    const m = fresh();
+    m.pageType = "site";
+    const posts: string[] = [];
+    mockFetch((url, init) => {
+      if (init.method === "POST" && url.includes("/cms/v3/pages/")) {
+        posts.push(url);
+        return Response.json({ id: "7001" });
+      }
+      return new Response("", { status: 200 });
+    });
+    await publishToHubSpot(conn, m, new Map());
+    expect(posts).toEqual(["https://api.hubapi.com/cms/v3/pages/site-pages"]);
+
+    // Switched back to landing pages: the website page id isn't a landing page.
+    m.pageType = "landing";
+    posts.length = 0;
+    mockFetch((url, init) => {
+      if (url.endsWith("/landing-pages/7001")) return Response.json({ message: "Not found" }, { status: 404 });
+      if (init.method === "POST" && url.includes("/cms/v3/pages/")) {
+        posts.push(url);
+        return Response.json({ id: "7002" });
+      }
+      return new Response("", { status: 200 });
+    });
+    const switched = await publishToHubSpot(conn, m, new Map());
+    expect(posts).toEqual(["https://api.hubapi.com/cms/v3/pages/landing-pages"]);
+    expect(switched.pages[0]).toMatchObject({ status: "created", id: "7002" });
   });
 
   it("skips the page when its template failed to upload", async () => {

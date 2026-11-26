@@ -283,6 +283,10 @@ const it: Section[] = [
           <li>Scegli quando aggiornare: <b>Every edit</b> (consigliato) o <b>On publish</b>.</li>
           <li>Incolla il token della private app <b>luvhub</b> e premi <b>Turn on sync</b>.</li>
         </ol>
+        <p>
+          Le pagine arrivano in HubSpot come <b>landing page in bozza</b> (<i>Contenuti → Landing page</i>, filtro <i>Bozze</i>), con il titolo
+          della pagina Lovable. Se preferisci pagine del sito web, scegli <b>Website page</b> nel nodo <b>2 Pages</b> prima di attivare il sync.
+        </p>
         <Callout>
           Il token viene salvato cifrato come secret <code>LUVHUB_HUBSPOT_TOKEN</code> della repository: luvhub non lo conserva. Se lo
           rigeneri in HubSpot, rifai l&apos;ultimo passo con il token nuovo.
@@ -563,6 +567,10 @@ const en: Section[] = [
           <li>Choose when to update: <b>Every edit</b> (recommended) or <b>On publish</b>.</li>
           <li>Paste the token of the <b>luvhub</b> private app and click <b>Turn on sync</b>.</li>
         </ol>
+        <p>
+          Pages arrive in HubSpot as <b>draft landing pages</b> (<i>Content → Landing pages</i>, <i>Drafts</i> filter), named after the
+          Lovable page. For website pages instead, pick <b>Website page</b> in node <b>2 Pages</b> before turning on sync.
+        </p>
         <Callout>
           The token is stored encrypted as the repository secret <code>LUVHUB_HUBSPOT_TOKEN</code>; luvhub doesn&apos;t keep it. If you
           rotate it in HubSpot, repeat the last step with the new token.

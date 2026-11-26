@@ -142,17 +142,22 @@ export interface SitePageInput {
   language?: string;
 }
 
+const PAGE_API = { landing: "/cms/v3/pages/landing-pages", site: "/cms/v3/pages/site-pages" } as const;
+
 /**
- * Creates a draft site page from a theme template, or updates the one created
- * on an earlier publish. Returns the page id. Pages stay drafts: going live is
- * the editor's call in HubSpot.
+ * Creates a draft landing page (or website page) from a theme template, or
+ * updates the one created on an earlier publish. Returns the page id. Pages
+ * stay drafts: going live is the editor's call in HubSpot. When the type
+ * changed since then, the old id isn't found and a page of the new type is
+ * created; the old page stays in HubSpot.
  */
-export async function upsertSitePage(
+export async function upsertPage(
   conn: HubSpotConnection,
   page: SitePageInput,
   existingId?: string,
-  opts: { resetContent?: boolean } = {},
+  opts: { resetContent?: boolean; type?: "landing" | "site" } = {},
 ): Promise<string> {
+  const base = PAGE_API[opts.type ?? "landing"];
   const body = JSON.stringify({
     name: page.name,
     htmlTitle: page.htmlTitle,
@@ -170,7 +175,7 @@ export async function upsertSitePage(
       // and drops what it stored on its own (module values edited in HubSpot,
       // drag-and-drop content from an earlier non-sync publish).
       const reset = opts.resetContent ? { templatePath, widgets: {}, layoutSections: {} } : {};
-      await api(conn.token, `/cms/v3/pages/site-pages/${encodeURIComponent(existingId)}`, {
+      await api(conn.token, `${base}/${encodeURIComponent(existingId)}`, {
         method: "PATCH",
         headers,
         body: JSON.stringify({ name, htmlTitle, metaDescription, ...reset }),
@@ -181,7 +186,7 @@ export async function upsertSitePage(
       if (!(e instanceof HubSpotHttpError && e.status === 404)) throw e;
     }
   }
-  const created = await api<{ id?: string | number }>(conn.token, "/cms/v3/pages/site-pages", { method: "POST", headers, body });
+  const created = await api<{ id?: string | number }>(conn.token, base, { method: "POST", headers, body });
   if (created.id === undefined || created.id === null) throw new Error("HubSpot did not return the new page id.");
   return String(created.id);
 }

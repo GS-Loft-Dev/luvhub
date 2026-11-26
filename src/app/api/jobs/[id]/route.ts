@@ -3,6 +3,7 @@ import { HttpError, handle } from "@/lib/http";
 import { saveJob, type Job } from "@/lib/jobs";
 import { requireJob } from "@/lib/require-job";
 import { slugify } from "@/lib/converter/util";
+import { DEFAULT_PAGE_TYPE, type PageType } from "@/lib/converter/types";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ function summary(job: Job) {
     createdAt: job.createdAt,
     automation: job.automation ?? null,
     theme: { name: model.name, label: model.label },
+    pageType: model.pageType ?? DEFAULT_PAGE_TYPE,
     warnings: model.warnings,
     assets: model.assets.length,
     pages: model.pages.map((p) => ({
@@ -49,6 +51,7 @@ interface Patch {
   theme?: { name?: string; label?: string };
   modules?: { id: string; name?: string; label?: string; included?: boolean }[];
   pages?: { route: string; label?: string }[];
+  pageType?: PageType;
 }
 
 export const PATCH = handle(async (req: Request, ctx: Ctx) => {
@@ -75,6 +78,11 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
       }
       mod.name = name;
     }
+  }
+
+  if (patch.pageType !== undefined) {
+    if (patch.pageType !== "landing" && patch.pageType !== "site") throw new HttpError(400, 'Page type must be "landing" or "site".');
+    job.model.pageType = patch.pageType;
   }
 
   for (const change of patch.pages ?? []) {

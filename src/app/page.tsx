@@ -38,6 +38,7 @@ interface JobSummary {
   createdAt?: string;
   automation?: { repo: string; branch: string; source: "build" | "url"; at: string; actionsUrl: string } | null;
   theme: { name: string; label: string };
+  pageType: "landing" | "site";
   warnings: string[];
   assets: number;
   pages: PageSummary[];
@@ -319,7 +320,7 @@ export default function Studio() {
   ) : job?.automation ? (
     <>Sync is on: every change pushed to <b>{job.automation.repo}</b> updates the HubSpot pages. <button className="linkish" onClick={() => setDock("sync")}>See the sync history</button>.</>
   ) : job ? (
-    <>{stats.included} modules and {stats.fields} editable fields ready. Each page becomes a draft HubSpot page titled <b>“{page?.label}”</b>. {hubspot ? "Press Publish." : "Connect HubSpot to publish."}</>
+    <>{stats.included} modules and {stats.fields} editable fields ready. Each page becomes a draft HubSpot {job.pageType === "site" ? "website page" : "landing page"} titled <b>“{page?.label}”</b>. {hubspot ? "Press Publish." : "Connect HubSpot to publish."}</>
   ) : mode === "lovable" && !lovableOn && !hubspot ? (
     "Connect Lovable in node 1 and HubSpot with the button top right: one click each."
   ) : mode === "url" && !url.trim() ? (
@@ -505,10 +506,14 @@ export default function Studio() {
                       onKeyDown={commitOnEnter}
                       onBlur={(e) => e.target.value.trim() && e.target.value !== page.label && patch({ pages: [{ route: page.route, label: e.target.value }] })}
                     />
+                    <div className="mini-tabs page-type" role="tablist" aria-label="HubSpot page type">
+                      <button role="tab" aria-selected={job.pageType !== "site"} className={job.pageType !== "site" ? "on" : ""} onClick={() => job.pageType === "site" && patch({ pageType: "landing" })}>Landing page</button>
+                      <button role="tab" aria-selected={job.pageType === "site"} className={job.pageType === "site" ? "on" : ""} onClick={() => job.pageType !== "site" && patch({ pageType: "site" })}>Website page</button>
+                    </div>
                   </>
                 ) : (
                   <>
-                    <p className="copy">Each Lovable page becomes a HubSpot draft page, with the same title already set.</p>
+                    <p className="copy">Each Lovable page becomes a draft HubSpot landing page, with the same title already set.</p>
                     <input className="nf mono" type="text" aria-label="Routes to convert" placeholder="Type the routes: / , /about" value={routes} onChange={(e) => setRoutes(e.target.value)} disabled={busy} />
                   </>
                 )}

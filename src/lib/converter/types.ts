@@ -98,6 +98,8 @@ export interface ThemeModel {
    * existing pages; used when a GitHub Action keeps HubSpot in sync with Lovable.
    */
   layout?: "dnd" | "sync";
+  /** What the HubSpot pages are: "landing" pages (default) or website ("site") pages. */
+  pageType?: PageType;
   htmlLang: string;
   /** Attributes of the source <body>, serialized. */
   bodyAttrs: string;
@@ -124,3 +126,6 @@ export interface RenderedPage {
   bodyAttrs: string;
   assets: (AssetRef & { base64: string })[];
 }
+
+export type PageType = "landing" | "site";
+export const DEFAULT_PAGE_TYPE: PageType = "landing";

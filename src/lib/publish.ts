@@ -1,11 +1,11 @@
 import JSZip from "jszip";
 import { writeTheme, type ThemeFiles } from "./converter/theme";
-import type { ThemeModel } from "./converter/types";
+import { DEFAULT_PAGE_TYPE, type ThemeModel } from "./converter/types";
 import {
   designManagerUrl,
   pageEditorUrl,
   putSourceFile,
-  upsertSitePage,
+  upsertPage,
   uploadFile,
   validateSourceFile,
   type HubSpotConnection,
@@ -120,7 +120,8 @@ export async function publishToHubSpot(
     steps.push(...results);
   }
 
-  // 3. One draft HubSpot page per source page, titled like the Lovable page.
+  // 3. One draft HubSpot page (a landing page unless set otherwise) per source
+  //    page, titled like the Lovable page.
   //    Ids are written back on the model so a later publish updates them.
   const failedPaths = new Set(steps.filter((s) => s.status === "failed").map((s) => s.path));
   const pages: PublishedPage[] = [];
@@ -133,7 +134,7 @@ export async function publishToHubSpot(
     }
     try {
       const existing = page.hubspotPageId;
-      const id = await upsertSitePage(
+      const id = await upsertPage(
         conn,
         {
           name: page.label,
@@ -144,7 +145,7 @@ export async function publishToHubSpot(
           language: model.htmlLang?.slice(0, 2) || undefined,
         },
         existing,
-        { resetContent: model.layout === "sync" },
+        { resetContent: model.layout === "sync", type: model.pageType ?? DEFAULT_PAGE_TYPE },
       );
       page.hubspotPageId = id;
       pages.push({ ...base, status: existing === id ? "updated" : "created", id, editUrl: pageEditorUrl(conn.portalId, id) });

@@ -44,7 +44,7 @@ Lovable project ──► headless Chrome ──► section detection ──► 
    Header and footer shared across pages are deduplicated into one module.
 4. **Review.** Each module shows a live preview. You can rename it, change its folder name or exclude it before publishing.
 5. **Publish.** Images and fonts are uploaded to your HubSpot **File Manager**. The theme files are validated, then written to the **Design Manager** with the [CMS Source Code API](https://developers.hubspot.com/docs/api-reference/latest/cms/source-code/guide). Validation errors are reported per file.
-6. **Pages.** Each converted Lovable page becomes a **draft HubSpot site page** built on its template, with the page name, HTML title and meta description taken from the Lovable page (titles can be edited in the review step). Publishing again updates the same pages instead of creating duplicates. Pages stay drafts: going live is your call in HubSpot.
+6. **Pages.** Each converted Lovable page becomes a **draft HubSpot landing page** (or a website page, your choice in node 2 or `"pageType": "site"` in `luvhub.json`) built on its template, with the page name, HTML title and meta description taken from the Lovable page (titles can be edited in the review step). Publishing again updates the same pages instead of creating duplicates. Pages stay drafts: going live is your call in HubSpot.
 
 You can also download the theme as a `.zip` and upload it with `hs upload`.
 
