@@ -12,7 +12,12 @@ export interface LuvhubConfig {
    * "build": build the project in the repository (every Lovable edit).
    * "url": render the published site (changes after Publish in Lovable).
    */
-  source: { type: "build"; command?: string; outDir?: string } | { type: "url"; url: string };
+  /**
+   * build: install, build and render the project. `outDir` is the static output
+   * (found automatically); `serveCommand` serves a server-rendered app instead,
+   * with {port} for the port (default: vite preview, then vite).
+   */
+  source: { type: "build"; command?: string; outDir?: string; serveCommand?: string } | { type: "url"; url: string };
   routes: string[];
   theme: { name: string; label: string };
   /** Per route: a title that overrides the source <title>, and the HubSpot page id. */

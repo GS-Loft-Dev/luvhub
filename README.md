@@ -83,6 +83,12 @@ luvhub then commits two files to the repository:
 
 Each run builds or opens the site with Chrome, converts it with the saved choices, and publishes only when something changed. The run summary links the HubSpot pages.
 
+How the build is rendered:
+
+- **Install** with the project's lockfile (bun for Lovable projects, npm, pnpm or yarn), falling back to `npm install --legacy-peer-deps`.
+- **Static builds** (`dist/`, `build/` or `out/` with an `index.html`) are served as files. Set `source.outDir` in `luvhub.json` for another folder.
+- **Server-rendered apps**, such as Lovable's TanStack Start projects, have no `index.html`: luvhub runs `vite preview`, then the Vite dev server if preview doesn't serve the site. Set `source.serveCommand` to use your own command, with `{port}` for the port, e.g. `"node .output/server/index.mjs"` with `PORT` read from the environment.
+
 > **Lovable becomes the source.** Synced pages use fixed sections instead of a drag-and-drop area, so every sync reaches them. Content edited in HubSpot on those pages is replaced at the next sync. SEO settings and the URL stay yours, and pages stay drafts until you publish them in HubSpot.
 
 You can also use the Action without the dashboard:

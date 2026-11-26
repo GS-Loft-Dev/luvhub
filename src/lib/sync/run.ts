@@ -9,6 +9,7 @@ import { connectionFromToken } from "../integrations/hubspot";
 import { publishToHubSpot, type PublishResult } from "../publish";
 import { renderRoutes } from "../render";
 import { applyConfig, recordPages, type LuvhubConfig } from "./config";
+import { startAppServer } from "./app-server";
 import { serveStatic } from "./serve";
 
 export interface SyncOptions {
@@ -69,10 +70,12 @@ async function install(cwd: string, log: (s: string) => void): Promise<void> {
   }
 }
 
-function findOutDir(cwd: string, configured?: string): string {
+/** The static site the build produced, or null when it's a server app (no index.html). */
+function findOutDir(cwd: string, configured?: string): string | null {
   const candidates = configured ? [configured] : ["dist", "build", "out"];
   for (const dir of candidates) if (existsSync(join(cwd, dir, "index.html"))) return join(cwd, dir);
-  throw new Error(`Build output not found (looked for ${candidates.map((d) => `${d}/index.html`).join(", ")}). Set "source.outDir" in luvhub.json.`);
+  if (configured) throw new Error(`Build output not found: ${configured}/index.html. Fix "source.outDir" in luvhub.json.`);
+  return null;
 }
 
 /** A stable fingerprint of what would be published: theme files, assets and page metadata. */
@@ -104,13 +107,14 @@ export async function runSync(opts: SyncOptions): Promise<SyncResult> {
     log(`Rendering ${c.source.url} (${c.routes.join(", ")})`);
     rendered = await renderRoutes({ url: c.source.url, routes: c.routes });
   } else {
-    let dir = opts.prebuiltDir;
+    let dir: string | null | undefined = opts.prebuiltDir;
     if (!dir) {
       await install(cwd, log);
       await run(c.source.command?.trim() || "npm run build", cwd, log);
       dir = findOutDir(cwd, c.source.outDir);
+      if (!dir) log("The build has no index.html (a server-rendered app): starting the project's own server.");
     }
-    const server = await serveStatic(dir);
+    const server = dir ? await serveStatic(dir) : await startAppServer(cwd, { custom: c.source.serveCommand, log });
     try {
       log(`Rendering the build (${c.routes.join(", ")})`);
       rendered = await renderRoutes({ url: server.url, routes: c.routes });

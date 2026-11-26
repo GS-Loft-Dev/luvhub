@@ -7,6 +7,7 @@ import { writeTheme } from "../src/lib/converter/theme";
 import { sealSecret } from "../src/lib/integrations/github";
 import { findChrome } from "../src/lib/render";
 import { applyConfig, configFromModel, parseConfig, recordPages, serializeConfig, type LuvhubConfig } from "../src/lib/sync/config";
+import { serveCommands } from "../src/lib/sync/app-server";
 import { installCommands, runSync } from "../src/lib/sync/run";
 import { serveStatic } from "../src/lib/sync/serve";
 import { SECRET_NAME, workflowYaml } from "../src/lib/sync/workflow";
@@ -110,6 +111,18 @@ describe("install", () => {
     for (const set of [pick(), pick("bun.lockb"), pick("yarn.lock"), pick("pnpm-lock.yaml"), pick("package-lock.json")]) {
       expect(set.at(-1)).toBe("npm install --no-audit --no-fund --legacy-peer-deps");
     }
+  });
+});
+
+describe("server-rendered builds", () => {
+  it("serves them with the project's Vite (preview, then dev) or the command in luvhub.json", () => {
+    const vite = (f: string) => f === "node_modules/.bin/vite";
+    expect(serveCommands("/x", undefined, vite)).toEqual([
+      "npx vite preview --host 127.0.0.1 --port {port} --strictPort",
+      "npx vite --host 127.0.0.1 --port {port} --strictPort",
+    ]);
+    expect(serveCommands("/x", "node .output/server/index.mjs", vite)).toEqual(["node .output/server/index.mjs"]);
+    expect(serveCommands("/x", undefined, () => false)).toEqual([]);
   });
 });
 
