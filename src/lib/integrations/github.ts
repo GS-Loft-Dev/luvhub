@@ -57,20 +57,60 @@ export async function githubLogin(token: string): Promise<string> {
 
 export interface RepoSummary {
   fullName: string;
+  owner: string;
   private: boolean;
   defaultBranch: string;
   pushedAt: string | null;
   description: string | null;
 }
 
-/** Repositories the user can push to, most recently pushed first. */
-export async function listRepos(conn: GitHubConnection): Promise<RepoSummary[]> {
-  const repos = await api<
-    { full_name: string; private: boolean; default_branch: string; pushed_at: string | null; description: string | null; permissions?: { push?: boolean } }[]
+export interface OwnerSummary {
+  login: string;
+  kind: "user" | "org";
+  avatarUrl: string;
+  repos: number;
+}
+
+/** Repositories the user can push to, most recently pushed first, and the accounts that own them. */
+export async function listRepos(conn: GitHubConnection): Promise<{ repos: RepoSummary[]; owners: OwnerSummary[] }> {
+  const raw = await api<
+    {
+      full_name: string;
+      private: boolean;
+      default_branch: string;
+      pushed_at: string | null;
+      description: string | null;
+      permissions?: { push?: boolean };
+      owner: { login: string; type: string; avatar_url: string };
+    }[]
   >(conn.token, "/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator,organization_member");
-  return repos
-    .filter((r) => r.permissions?.push !== false)
-    .map((r) => ({ fullName: r.full_name, private: r.private, defaultBranch: r.default_branch, pushedAt: r.pushed_at, description: r.description }));
+  const usable = raw.filter((r) => r.permissions?.push !== false);
+  const owners = new Map<string, OwnerSummary>();
+  for (const r of usable) {
+    const o = owners.get(r.owner.login) ?? {
+      login: r.owner.login,
+      kind: r.owner.type === "Organization" ? "org" : "user",
+      avatarUrl: r.owner.avatar_url,
+      repos: 0,
+    };
+    o.repos++;
+    owners.set(r.owner.login, o);
+  }
+  // The signed-in account first, then organizations by name.
+  const sorted = [...owners.values()].sort((a, b) =>
+    a.login === conn.login ? -1 : b.login === conn.login ? 1 : a.kind !== b.kind ? (a.kind === "user" ? -1 : 1) : a.login.localeCompare(b.login),
+  );
+  return {
+    repos: usable.map((r) => ({
+      fullName: r.full_name,
+      owner: r.owner.login,
+      private: r.private,
+      defaultBranch: r.default_branch,
+      pushedAt: r.pushed_at,
+      description: r.description,
+    })),
+    owners: sorted,
+  };
 }
 
 export function checkRepoName(repo: string): string {

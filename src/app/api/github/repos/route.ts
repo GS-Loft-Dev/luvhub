@@ -5,9 +5,11 @@ import { getSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-/** Repositories the GitHub login can push to, for the sync setup. */
+/** Accounts and repositories the GitHub login can push to, for the sync setup. */
 export const GET = handle(async () => {
-  const conn = await githubConnection(await getSession());
+  const session = await getSession();
+  const conn = await githubConnection(session);
   if (!conn) throw new HttpError(401, "Connect GitHub first.");
-  return NextResponse.json({ login: conn.login, repos: await listRepos(conn) });
+  const { repos, owners } = await listRepos(conn);
+  return NextResponse.json({ login: conn.login, viaToken: !session.github, owners, repos });
 });

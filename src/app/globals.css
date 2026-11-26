@@ -545,3 +545,16 @@ pre.code code { background: none; border: 0; padding: 0; color: inherit; }
 .tag-ok svg { width: 11px; height: 11px; }
 button.nf:disabled { opacity: 0.55; cursor: not-allowed; }
 @media (max-width: 640px) { .sync-row { grid-template-columns: 22px minmax(0, 1fr); } .sync-row > :last-child { grid-column: 1 / -1; } }
+
+/* GitHub account picker in the sync panel */
+.sync-row:first-of-type { align-items: start; }
+.owners { display: grid; gap: 4px; max-height: 196px; overflow: auto; scrollbar-width: thin; }
+.owner { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--field); color: var(--ink); font: inherit; font-size: 11px; text-align: left; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+.owner:hover { border-color: var(--line-2); }
+.owner.on { border-color: rgb(79 224 138 / 0.55); background: rgb(79 224 138 / 0.07); }
+.owner img { width: 22px; height: 22px; border-radius: 6px; flex: none; background: #2a2a2d; }
+.owner .who { display: grid; line-height: 1.3; min-width: 0; flex: 1; }
+.owner .who small { color: var(--muted); font-size: 10px; }
+.owner svg { width: 12px; height: 12px; color: var(--green); flex: none; }
+.owner:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.sync-row small b.inline { display: inline; font-size: inherit; margin: 0; color: var(--ink-2); }

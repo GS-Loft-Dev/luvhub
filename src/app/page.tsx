@@ -840,7 +840,8 @@ function ModuleModal({ jobId, module: m, onClose, patch }: { jobId: string; modu
 
 /* ------------------------------------------------------------------ sync panel */
 
-interface RepoSummary { fullName: string; private: boolean; defaultBranch: string; pushedAt: string | null; description: string | null }
+interface RepoSummary { fullName: string; owner: string; private: boolean; defaultBranch: string; pushedAt: string | null; description: string | null }
+interface OwnerSummary { login: string; kind: "user" | "org"; avatarUrl: string; repos: number }
 interface AutomateResult { repo: string; branch: string; started: "push" | "dispatch"; portalId: number | null; actionsUrl: string; configUrl: string }
 
 /**
@@ -857,6 +858,9 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
 }) {
   const gh = setup.github;
   const [repos, setRepos] = useState<RepoSummary[] | null>(null);
+  const [owners, setOwners] = useState<OwnerSummary[] | null>(null);
+  // The account is always asked for, unless this conversion already syncs somewhere.
+  const [owner, setOwner] = useState(job.automation?.repo.split("/")[0] ?? "");
   const [repo, setRepo] = useState(job.automation?.repo ?? "");
   const [filter, setFilter] = useState("");
   const [source, setSource] = useState<"build" | "url">(job.automation?.source ?? "build");
@@ -875,7 +879,12 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
 
   useEffect(() => {
     if (!gh) return;
-    api<{ repos: RepoSummary[] }>("/api/github/repos").then((r) => setRepos(r.repos)).catch((e) => setErr(e.message));
+    api<{ repos: RepoSummary[]; owners: OwnerSummary[] }>("/api/github/repos")
+      .then((r) => {
+        setRepos(r.repos);
+        setOwners(r.owners);
+      })
+      .catch((e) => setErr(e.message));
   }, [gh]);
 
   useEffect(() => {
@@ -885,9 +894,13 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
   }, [gh, repo]);
 
   const loginHref = `/api/auth/github/login?return=${encodeURIComponent(`/?job=${job.id}&automate=1`)}`;
-  const shown = repos?.filter((r) => !filter || r.fullName.toLowerCase().includes(filter.toLowerCase())) ?? [];
+  const shown = repos?.filter((r) => r.owner === owner && (!filter || r.fullName.toLowerCase().includes(filter.toLowerCase()))) ?? [];
+  const chooseOwner = (login: string) => {
+    setOwner(login);
+    if (!repo.startsWith(`${login}/`)) setRepo("");
+  };
   const needsToken = secret === false;
-  const ready = Boolean(gh && repo && (source === "build" || /^https:\/\//.test(url)) && (!needsToken || token.trim()) && secret !== null);
+  const ready = Boolean(gh && owner && repo && (source === "build" || /^https:\/\//.test(url)) && (!needsToken || token.trim()) && secret !== null);
 
   const submit = async () => {
     setBusy(true);
@@ -938,11 +951,31 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
             <div className="inner sync-row">
               <span className="sn">1</span>
               <div>
-                <b>GitHub</b>
-                <small>luvhub writes the workflow and its settings to the repository.</small>
+                <b>GitHub account</b>
+                <small>
+                  {gh
+                    ? <>Which account or organization owns the project&apos;s repository. Signed in as <b className="inline">@{gh.login}</b>{gh.viaToken ? " with the server token" : ""}.</>
+                    : "luvhub writes the workflow and its settings to the repository."}
+                  {gh && setup.setup.githubOAuth && gh.viaToken && <> <a href={loginHref}>Use another GitHub login</a>.</>}
+                </small>
               </div>
               {gh ? (
-                <span className="sync-who"><span className="dot-ok" /> @{gh.login}</span>
+                <div className="owners" role="radiogroup" aria-label="GitHub account">
+                  {!owners ? (
+                    <span className="sync-who"><Spinner /> Loading accounts…</span>
+                  ) : owners.length === 0 ? (
+                    <span className="sync-who">No repositories you can push to.</span>
+                  ) : (
+                    owners.map((o) => (
+                      <button key={o.login} role="radio" aria-checked={owner === o.login} className={`owner ${owner === o.login ? "on" : ""}`} onClick={() => chooseOwner(o.login)}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`${o.avatarUrl}${o.avatarUrl.includes("?") ? "&" : "?"}s=48`} alt="" />
+                        <span className="who">{o.login}<small>{o.kind === "org" ? "Organization" : "Personal"} · {o.repos} repo{o.repos === 1 ? "" : "s"}</small></span>
+                        {owner === o.login && <I.check />}
+                      </button>
+                    ))
+                  )}
+                </div>
               ) : setup.setup.githubOAuth ? (
                 <a className="btn-white" href={loginHref}><I.login /> Connect GitHub</a>
               ) : (
@@ -950,21 +983,21 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
               )}
             </div>
 
-            <div className={`inner sync-row ${gh ? "" : "dim"}`}>
+            <div className={`inner sync-row ${gh && owner ? "" : "dim"}`}>
               <span className="sn">2</span>
               <div>
                 <b>Repository</b>
                 <small>The one Lovable syncs this project to (in Lovable: GitHub, Connect project).</small>
               </div>
               <div className="sync-field">
-                <input className="nf" type="search" placeholder="Filter repositories" value={filter} onChange={(e) => setFilter(e.target.value)} disabled={!gh} aria-label="Filter repositories" />
+                <input className="nf" type="search" placeholder="Filter repositories" value={filter} onChange={(e) => setFilter(e.target.value)} disabled={!gh || !owner} aria-label="Filter repositories" />
                 <label className="nf">
                   <I.cube />
-                  <span className="val">{repo || (gh ? (repos ? "Choose a repository" : "Loading…") : "Connect GitHub first")}</span>
+                  <span className="val">{repo || (!gh ? "Connect GitHub first" : !owner ? "Choose an account first" : repos ? (shown.length ? "Choose a repository" : "No repositories here") : "Loading…")}</span>
                   <Caret />
-                  <select value={repo} onChange={(e) => setRepo(e.target.value)} disabled={!gh || !repos} aria-label="Repository">
+                  <select value={repo} onChange={(e) => setRepo(e.target.value)} disabled={!gh || !repos || !owner} aria-label="Repository">
                     <option value="">Choose a repository</option>
-                    {shown.map((r) => <option key={r.fullName} value={r.fullName}>{r.fullName}{r.private ? " (private)" : ""}</option>)}
+                    {shown.map((r) => <option key={r.fullName} value={r.fullName}>{r.fullName.split("/")[1]}{r.private ? " (private)" : ""}</option>)}
                   </select>
                 </label>
               </div>
