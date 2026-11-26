@@ -54,6 +54,8 @@ export interface RenderOptions {
   chromeArgs?: string[];
   /** Also copy the app's own JS, CSS and media (once, from the first route). */
   captureApp?: boolean;
+  /** Tests: total bytes of images to copy (default depends on the host). */
+  assetBudgetBytes?: number;
 }
 
 /** Default pack for @sparticuz/chromium-min; must match the installed package version. */
@@ -145,20 +147,42 @@ async function renderOne(browser: Browser, opts: RenderOptions, route: string, w
     if (opts.embedParentOrigin) {
       frame = await openInIframe(page, opts.embedParentOrigin, target, timeout);
     } else {
-      await page.goto(target, { waitUntil: "networkidle", timeout }).catch(async () => {
-        await page.goto(target, { waitUntil: "load", timeout });
-      });
+      await page.goto(target, { waitUntil: "load", timeout });
+      await settle(page.mainFrame());
       frame = page.mainFrame();
     }
 
     await frame.waitForSelector("#root > *, body > *", { timeout }).catch(() => undefined);
     await autoScroll(frame);
-    const captured = await frame.evaluate(capturePage);
+    const captured = await frame.evaluate(capturePage, assetLimits(opts));
     const app = withApp ? await captureLiveApp(frame).catch(() => undefined) : undefined;
     return { route, url: target, ...captured, ...(app ? { app } : {}) };
   } finally {
     await context.close();
   }
+}
+
+/**
+ * Gives the page a moment to finish its requests, but never long: pages with
+ * a looping video or analytics never go quiet, and waiting for that used to
+ * eat the whole time a serverless function has.
+ */
+async function settle(frame: Frame): Promise<void> {
+  const ms = Number(process.env.RENDER_IDLE_MS) || 8000;
+  await frame.waitForLoadState("networkidle", { timeout: ms }).catch(() => undefined);
+}
+
+/**
+ * How much of the page's images to copy. On serverless hosts (the dashboard
+ * on Netlify) a function has 60s, so copying stops at a budget and the rest
+ * keep their address on the Lovable site; elsewhere (the GitHub Action, a
+ * server) everything is copied.
+ */
+function assetLimits(opts: RenderOptions): { maxAssets: number; maxBytes: number; totalBytes: number } {
+  if (opts.assetBudgetBytes !== undefined) return { maxAssets: 80, maxBytes: 8 * 1024 * 1024, totalBytes: opts.assetBudgetBytes };
+  return isServerless()
+    ? { maxAssets: 60, maxBytes: 4 * 1024 * 1024, totalBytes: 12 * 1024 * 1024 }
+    : { maxAssets: 120, maxBytes: 16 * 1024 * 1024, totalBytes: 200 * 1024 * 1024 };
 }
 
 /**
@@ -179,7 +203,7 @@ async function openInIframe(page: Page, parentOrigin: string, target: string, ti
   for (;;) {
     const frame = page.frames().find((f) => f !== page.mainFrame() && f.url().startsWith(targetOrigin));
     if (frame) {
-      await frame.waitForLoadState("networkidle", { timeout }).catch(() => undefined);
+      await settle(frame);
       return frame;
     }
     if (Date.now() > deadline) throw new Error("The Lovable preview did not load in time.");
@@ -208,9 +232,10 @@ async function autoScroll(frame: Frame): Promise<void> {
  * `h2h-asset:` placeholders (bytes are returned base64-encoded) and collects
  * the effective CSS. Must be self-contained: it is serialised by Playwright.
  */
-async function capturePage() {
-  const MAX_ASSETS = 80;
-  const MAX_BYTES = 8 * 1024 * 1024;
+async function capturePage(limits: { maxAssets: number; maxBytes: number; totalBytes: number }) {
+  const MAX_ASSETS = limits.maxAssets;
+  const MAX_BYTES = limits.maxBytes;
+  let budget = limits.totalBytes;
   const origin = location.origin;
   const assets: { id: string; fileName: string; contentType: string; sourceUrl: string; base64: string }[] = [];
   const seen = new Map<string, string | null>();
@@ -235,10 +260,18 @@ async function capturePage() {
     seen.set(url, null);
     if (assets.length >= MAX_ASSETS) return null;
     try {
-      const res = await fetch(url, { credentials: "include" });
+      const ctl = new AbortController();
+      const res = await fetch(url, { credentials: "include", signal: ctl.signal });
       if (!res.ok) return null;
+      // Too big for what's left: don't download it, it keeps its address.
+      const declared = Number(res.headers.get("content-length") ?? "");
+      if (declared && (declared > MAX_BYTES || declared > budget)) {
+        ctl.abort();
+        return null;
+      }
       const blob = await res.blob();
-      if (blob.size > MAX_BYTES) return null;
+      if (blob.size > MAX_BYTES || blob.size > budget) return null;
+      budget -= blob.size;
       const base64 = await new Promise<string>((resolve, reject) => {
         const fr = new FileReader();
         fr.onload = () => resolve(String(fr.result).split(",")[1] ?? "");
