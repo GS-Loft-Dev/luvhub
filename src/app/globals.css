@@ -548,7 +548,7 @@ button.nf:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* GitHub account picker in the sync panel */
 .sync-row:first-of-type { align-items: start; }
-.owners { display: grid; gap: 4px; max-height: 196px; overflow: auto; scrollbar-width: thin; }
+.owners { display: grid; gap: 4px; justify-items: stretch; max-height: 196px; overflow: auto; scrollbar-width: thin; }
 .owner { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--field); color: var(--ink); font: inherit; font-size: 11px; text-align: left; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
 .owner:hover { border-color: var(--line-2); }
 .owner.on { border-color: rgb(79 224 138 / 0.55); background: rgb(79 224 138 / 0.07); }
@@ -558,3 +558,4 @@ button.nf:disabled { opacity: 0.55; cursor: not-allowed; }
 .owner svg { width: 12px; height: 12px; color: var(--green); flex: none; }
 .owner:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .sync-row small b.inline { display: inline; font-size: inherit; margin: 0; color: var(--ink-2); }
+.owners > .btn-white { justify-self: start; margin-bottom: 4px; }

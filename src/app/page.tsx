@@ -953,14 +953,22 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
               <div>
                 <b>GitHub account</b>
                 <small>
-                  {gh
-                    ? <>Which account or organization owns the project&apos;s repository. Signed in as <b className="inline">@{gh.login}</b>{gh.viaToken ? " with the server token" : ""}.</>
-                    : "luvhub writes the workflow and its settings to the repository."}
-                  {gh && setup.setup.githubOAuth && gh.viaToken && <> <a href={loginHref}>Use another GitHub login</a>.</>}
+                  {!gh ? (
+                    "Sign in with your GitHub account: luvhub writes the workflow and its settings to the repository you pick."
+                  ) : !gh.viaToken ? (
+                    <>Signed in with your account <b className="inline">@{gh.login}</b>. Pick who owns the project&apos;s repository.</>
+                  ) : setup.setup.githubOAuth ? (
+                    <>Using the server&apos;s GitHub token (<b className="inline">@{gh.login}</b>) because nobody is signed in. Sign in to use your own account.</>
+                  ) : (
+                    <>Using the server&apos;s GitHub token (<b className="inline">@{gh.login}</b>). To let each person sign in with their own account, set <code>GITHUB_CLIENT_ID</code> and <code>GITHUB_CLIENT_SECRET</code>.</>
+                  )}
                 </small>
               </div>
               {gh ? (
                 <div className="owners" role="radiogroup" aria-label="GitHub account">
+                  {gh.viaToken && setup.setup.githubOAuth && (
+                    <a className="btn-white" href={loginHref}><I.login /> Sign in with your GitHub</a>
+                  )}
                   {!owners ? (
                     <span className="sync-who"><Spinner /> Loading accounts…</span>
                   ) : owners.length === 0 ? (

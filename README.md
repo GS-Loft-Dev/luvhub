@@ -159,6 +159,11 @@ Pick one:
 - **OAuth (multi-portal).** Create a public app in a HubSpot developer account with redirect URL `{APP_URL}/api/auth/hubspot/callback` and the scopes `content` and `files`. Set `HUBSPOT_CLIENT_ID` and `HUBSPOT_CLIENT_SECRET`.
 - **Private app token (single portal).** Create a private app with `content` and `files` and set `HUBSPOT_ACCESS_TOKEN`.
 
+### GitHub login (for sync)
+
+- **OAuth (each person uses their own account).** At *github.com → Settings → Developer settings → OAuth Apps → New OAuth App*, set the callback URL to `{APP_URL}/api/auth/github/callback`, then set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`. luvhub asks for the `repo` and `workflow` scopes.
+- **Server token (fallback).** `LUVHUB_GITHUB_TOKEN` is used only when nobody is signed in with GitHub, and acts as the account that created it. Leave it empty if everyone should sign in.
+
 ## Limitations
 
 - **Interactivity becomes static.** React state, accordions, carousels and tabs are captured as they look on load. Rebuild them with HubSpot modules or add your own JS to the theme.
