@@ -54,7 +54,7 @@ interface PublishResult {
   pages: PublishedPage[];
 }
 
-type DockTab = "status" | "log" | "pages" | "warnings" | "settings";
+type DockTab = "status" | "log" | "pages" | "sync" | "warnings" | "settings";
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -317,13 +317,13 @@ export default function Studio() {
       <>Published with issues: {result.steps.filter((s) => s.status === "failed").length} files and {result.pages.length - pagesOk} pages failed. See the log.</>
     )
   ) : job?.automation ? (
-    <>Sync is on: every change pushed to <b>{job.automation.repo}</b> updates the HubSpot pages. <a href={job.automation.actionsUrl} target="_blank" rel="noreferrer">See the runs</a>.</>
+    <>Sync is on: every change pushed to <b>{job.automation.repo}</b> updates the HubSpot pages. <button className="linkish" onClick={() => setDock("sync")}>See the sync history</button>.</>
   ) : job ? (
     <>{stats.included} modules and {stats.fields} editable fields ready. Each page becomes a draft HubSpot page titled <b>“{page?.label}”</b>. {hubspot ? "Press Publish." : "Connect HubSpot to publish."}</>
   ) : mode === "lovable" && !lovableOn && !hubspot ? (
-    "Connect Lovable and HubSpot: one click each, on the L and H avatars top left, or in node 1."
+    "Connect Lovable in node 1 and HubSpot with the button top right: one click each."
   ) : mode === "url" && !url.trim() ? (
-    <>Paste the address of a published Lovable site in node 1.{hubspot ? "" : " Connect HubSpot (H, top left) to publish."}</>
+    <>Paste the address of a published Lovable site in node 1.{hubspot ? "" : " Connect HubSpot (top right) to publish."}</>
   ) : mode === "lovable" && !project ? (
     lovableOn ? "Pick a Lovable project in the Source node." : "Connect Lovable, or switch the Source node to URL."
   ) : (
@@ -386,12 +386,7 @@ export default function Studio() {
 
       {/* sub bar */}
       <div className="sb">
-        <div className="people" aria-label="Connections">
-          <span className="badge" aria-hidden><I.sparkle /></span>
-          <ConnAvatar kind="lovable" on={lovableOn} href={setup?.setup.lovableOAuth && !lovableOn ? "/api/auth/lovable/login" : undefined} />
-          <ConnAvatar kind="hubspot" on={Boolean(hubspot)} href={setup?.setup.hubspotOAuth && !hubspot ? "/api/auth/hubspot/login" : undefined} detail={hubspot ? `Portal ${hubspot.portalId}` : undefined} />
-          <span className="more">{Number(lovableOn) + Number(Boolean(hubspot))}/2</span>
-        </div>
+        <div aria-hidden />
         <div className="sb-title">{job ? `${job.source.label} → hubspot · ${job.theme.name}/` : "lovable → hubspot · luvhub"}</div>
         <div className="sb-right">
           {!hubspot && setup?.setup.hubspotOAuth ? (
@@ -736,6 +731,7 @@ export default function Studio() {
               ) : <div className="txt muted">Pages appear after the conversion.</div>}
             </>
           )}
+          {dock === "sync" && <SyncHistory job={job} onSetUp={() => setSyncOpen(true)} />}
           {dock === "warnings" && (
             <>
               <div className="lbl">Warnings</div>
@@ -757,6 +753,7 @@ export default function Studio() {
             ["status", <I.history key="i" />, "Status"],
             ["log", <I.file key="i" />, "Publish log"],
             ["pages", <I.cube key="i" />, "HubSpot pages"],
+            ["sync", <I.refresh key="i" />, "Sync history"],
           ] as const).map(([id, icon, label]) => (
             <button key={id} role="tab" aria-selected={dock === id} aria-label={label} title={label} className={`tool ${dock === id ? "on wide" : ""}`} onClick={() => setDock(id)}>{icon}{dock === id && <span>{label}</span>}</button>
           ))}
@@ -782,14 +779,113 @@ export default function Studio() {
   );
 }
 
-function ConnAvatar({ kind, on, href, detail }: { kind: "lovable" | "hubspot"; on: boolean; href?: string; detail?: string }) {
-  const name = kind === "lovable" ? "Lovable" : "HubSpot";
-  const title = `${name}: ${on ? detail ?? "connected" : href ? "click to connect" : "not connected"}`;
-  const inner = <>{kind === "lovable" ? "L" : "H"}<span className={`st ${on ? "on" : ""}`} /></>;
-  return href ? (
-    <a className={`avatar ${kind} ${on ? "" : "off"}`} href={href} title={title} aria-label={`Connect ${name}`}>{inner}</a>
-  ) : (
-    <span className={`avatar ${kind} ${on ? "" : "off"}`} title={title} aria-label={title}>{inner}</span>
+interface SyncRun {
+  id: number;
+  status: string;
+  conclusion: string | null;
+  event: string;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+  sha: string;
+  message: string | null;
+  actor: string | null;
+}
+
+const when = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+
+function runState(r: SyncRun): { icon: string; label: string; cls: string } {
+  if (r.status !== "completed") return { icon: "…", label: r.status === "queued" ? "queued" : "running", cls: "skip" };
+  if (r.conclusion === "success") return { icon: "✓", label: "done", cls: "" };
+  if (r.conclusion === "cancelled" || r.conclusion === "skipped") return { icon: "–", label: r.conclusion, cls: "skip" };
+  return { icon: "✗", label: "failed", cls: "bad" };
+}
+
+/** Latest runs of the luvhub workflow in the project's repository, refreshed while one is running. */
+function SyncHistory({ job, onSetUp }: { job: JobSummary | null; onSetUp: () => void }) {
+  const [runs, setRuns] = useState<SyncRun[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const id = job?.automation ? job.id : null;
+
+  const load = useCallback(async () => {
+    if (!id) return;
+    try {
+      setRuns((await api<{ runs: SyncRun[] }>(`/api/jobs/${id}/sync-runs`)).runs);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    setRuns(null);
+    void load();
+  }, [load]);
+
+  const active = runs?.some((r) => r.status !== "completed") ?? false;
+  useEffect(() => {
+    if (!active && !starting) return;
+    const t = setInterval(() => void load(), 5000);
+    return () => clearInterval(t);
+  }, [active, starting, load]);
+
+  if (!job?.automation) {
+    return (
+      <>
+        <div className="lbl">Sync history</div>
+        <div className="txt muted">
+          {job ? <>Sync is off. <button className="linkish" onClick={onSetUp}>Set up sync</button> to update HubSpot after every Lovable edit.</> : "Convert a project and turn on sync to see its history here."}
+        </div>
+      </>
+    );
+  }
+
+  const syncNow = async () => {
+    setStarting(true);
+    try {
+      await api(`/api/jobs/${job.id}/sync-runs`, { method: "POST", body: JSON.stringify({ force: true }) });
+      // GitHub lists a dispatched run after a few seconds.
+      setTimeout(() => { void load(); setStarting(false); }, 4000);
+    } catch (e) {
+      setError((e as Error).message);
+      setStarting(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="lbl hist-head">
+        <span>Sync history · {job.automation.repo}</span>
+        <span>
+          <button className="linkish" onClick={() => void load()}>Refresh</button>
+          {" · "}
+          <button className="linkish" onClick={() => void syncNow()} disabled={starting || active}>{starting ? "Starting…" : "Sync now"}</button>
+          {" · "}
+          <a href={job.automation.actionsUrl} target="_blank" rel="noreferrer">All runs on GitHub</a>
+        </span>
+      </div>
+      {error ? (
+        <div className="txt bad-txt">{error}</div>
+      ) : !runs ? (
+        <div className="txt muted"><Spinner /> Loading…</div>
+      ) : runs.length === 0 ? (
+        <div className="txt muted">No runs yet. The first one starts a few seconds after sync is turned on.</div>
+      ) : (
+        <div className="log">
+          {runs.map((r) => {
+            const st = runState(r);
+            return (
+              <div key={r.id} className={st.cls} title={`${r.sha} · ${r.event}${r.actor ? ` · ${r.actor}` : ""}`}>
+                {st.icon} {when(r.createdAt)} · {st.label} · {r.event === "workflow_dispatch" ? "manual" : r.message ?? r.sha}{" "}
+                <a href={r.url} target="_blank" rel="noreferrer">log</a>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1034,7 +1130,7 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
                 <b>HubSpot token</b>
                 <small>
                   A private app token with the <code>content</code> and <code>files</code> scopes.{" "}
-                  <a href="https://developers.hubspot.com/docs/api/private-apps" target="_blank" rel="noreferrer">How to create one</a>. It is stored encrypted as a GitHub secret; luvhub doesn&apos;t keep it.
+                  <a href="/tutorial#sync" target="_blank" rel="noreferrer">How to create the &quot;luvhub&quot; token</a>. It is stored encrypted as a GitHub secret; luvhub doesn&apos;t keep it.
                 </small>
               </div>
               <div className="sync-field">

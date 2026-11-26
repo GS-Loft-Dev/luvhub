@@ -107,8 +107,8 @@ const it: Section[] = [
         <h3>2. HubSpot: scegli come collegarti</h3>
         <ul>
           <li>
-            <b>Private app</b> (un solo portale): in HubSpot vai su <i>Impostazioni → Integrazioni → Private app</i> (nei portali più recenti si trova nell&apos;area <i>Sviluppo</i>), creane una con gli
-            scope <code>content</code> e <code>files</code> e copia il token in <code>HUBSPOT_ACCESS_TOKEN</code>.
+            <b>Private app</b> (un solo portale): in HubSpot vai su <i>Impostazioni → Integrazioni → Private app</i> (nei portali più recenti si trova nell&apos;area <i>Sviluppo</i>), creane una chiamata <b>luvhub</b> con gli
+            scope <code>content</code> e <code>files</code> e copia il suo token in <code>HUBSPOT_ACCESS_TOKEN</code>.
           </li>
           <li>
             <b>App pubblica OAuth</b> (più portali): crea un&apos;app nel tuo account sviluppatore HubSpot con redirect{" "}
@@ -251,6 +251,51 @@ const it: Section[] = [
     ),
   },
   {
+    id: "sync",
+    title: "Tenere HubSpot sincronizzato con Lovable",
+    body: (
+      <>
+        <p>
+          Una volta attivato, il sync è permanente: a ogni modifica in Lovable una GitHub Action nella repository del progetto ricostruisce il
+          sito e aggiorna le stesse pagine su HubSpot, titoli compresi. Non serve rilanciarlo a mano.
+        </p>
+        <video className="tut-video" controls playsInline preload="metadata" poster="/tutorial/sync-tutorial.jpg" aria-label="Video: attivare il sync passo per passo (54 secondi)">
+          <source src="/tutorial/sync-tutorial.mp4" type="video/mp4" />
+        </video>
+        <h3>1. Crea il token HubSpot &quot;luvhub&quot;</h3>
+        <ol className="numbered">
+          <li>
+            In HubSpot apri <i>Impostazioni → Integrazioni → Private app</i> (nei portali più recenti: <i>Sviluppo → Private app</i>) e premi{" "}
+            <b>Crea una private app</b>.
+          </li>
+          <li>Nella scheda <i>Informazioni di base</i> chiamala <b>luvhub</b>.</li>
+          <li>Nella scheda <i>Ambiti</i> seleziona <code>content</code> e <code>files</code>, poi premi <b>Crea app</b>.</li>
+          <li>
+            Apri la private app <b>luvhub</b>, vai alla scheda <i>Token di accesso</i>, premi <b>Mostra token</b> e poi <b>Copia</b>. Il token
+            inizia con <code>pat-</code>.
+          </li>
+        </ol>
+        <h3>2. Attiva il sync dalla dashboard</h3>
+        <ol className="numbered">
+          <li>In Lovable collega il progetto a GitHub (<i>GitHub → Connect project</i>).</li>
+          <li>In luvhub converti il progetto, poi nel nodo <b>5 Sync</b> premi <b>Set up sync</b>.</li>
+          <li>Scegli l&apos;account GitHub e la repository del progetto Lovable.</li>
+          <li>Scegli quando aggiornare: <b>Every edit</b> (consigliato) o <b>On publish</b>.</li>
+          <li>Incolla il token della private app <b>luvhub</b> e premi <b>Turn on sync</b>.</li>
+        </ol>
+        <Callout>
+          Il token viene salvato cifrato come secret <code>LUVHUB_HUBSPOT_TOKEN</code> della repository: luvhub non lo conserva. Se lo
+          rigeneri in HubSpot, rifai l&apos;ultimo passo con il token nuovo.
+        </Callout>
+        <Callout kind="warn">
+          Da qui in poi <b>Lovable è la fonte</b>: le modifiche ai contenuti fatte in HubSpot vengono sovrascritte al sync successivo. Titolo
+          SEO e URL si possono cambiare in HubSpot. Per ripubblicare a mano: tab <i>Actions</i> della repository → <i>luvhub</i> →{" "}
+          <i>Run workflow</i>.
+        </Callout>
+      </>
+    ),
+  },
+  {
     id: "consigli",
     title: "Preparare la pagina su Lovable per una conversione migliore",
     body: (
@@ -349,8 +394,8 @@ const en: Section[] = [
         <h3>2. HubSpot: pick how to connect</h3>
         <ul>
           <li>
-            <b>Private app</b> (one portal): in HubSpot go to <i>Settings → Integrations → Private apps</i> (newer portals list it under <i>Development</i>), create one with the{" "}
-            <code>content</code> and <code>files</code> scopes and copy the token into <code>HUBSPOT_ACCESS_TOKEN</code>.
+            <b>Private app</b> (one portal): in HubSpot go to <i>Settings → Integrations → Private apps</i> (newer portals list it under <i>Development</i>), create one named <b>luvhub</b> with the{" "}
+            <code>content</code> and <code>files</code> scopes and copy its token into <code>HUBSPOT_ACCESS_TOKEN</code>.
           </li>
           <li>
             <b>Public OAuth app</b> (many portals): create an app in your HubSpot developer account with redirect{" "}
@@ -481,6 +526,50 @@ const en: Section[] = [
         <Callout>
           Rather upload by hand? <b>Download .zip</b> gives you the theme ready for <code>npx @hubspot/cli upload</code>. In that case images
           keep pointing at the original Lovable URLs.
+        </Callout>
+      </>
+    ),
+  },
+  {
+    id: "sync",
+    title: "Keeping HubSpot in sync with Lovable",
+    body: (
+      <>
+        <p>
+          Once it is on, sync is permanent: on every Lovable edit a GitHub Action in the project&apos;s repository rebuilds the site and
+          updates the same HubSpot pages, titles included. You don&apos;t run it by hand.
+        </p>
+        <video className="tut-video" controls playsInline preload="metadata" poster="/tutorial/sync-tutorial.jpg" aria-label="Video: turning on sync step by step (54 seconds)">
+          <source src="/tutorial/sync-tutorial.mp4" type="video/mp4" />
+        </video>
+        <h3>1. Create the &quot;luvhub&quot; HubSpot token</h3>
+        <ol className="numbered">
+          <li>
+            In HubSpot open <i>Settings → Integrations → Private apps</i> (newer portals: <i>Development → Private apps</i>) and click{" "}
+            <b>Create a private app</b>.
+          </li>
+          <li>On the <i>Basic info</i> tab name it <b>luvhub</b>.</li>
+          <li>On the <i>Scopes</i> tab select <code>content</code> and <code>files</code>, then click <b>Create app</b>.</li>
+          <li>
+            Open the <b>luvhub</b> private app, go to the <i>Access token</i> tab, click <b>Show token</b> and then <b>Copy</b>. The token
+            starts with <code>pat-</code>.
+          </li>
+        </ol>
+        <h3>2. Turn on sync from the dashboard</h3>
+        <ol className="numbered">
+          <li>In Lovable connect the project to GitHub (<i>GitHub → Connect project</i>).</li>
+          <li>In luvhub convert the project, then in node <b>5 Sync</b> click <b>Set up sync</b>.</li>
+          <li>Pick the GitHub account and the Lovable project&apos;s repository.</li>
+          <li>Choose when to update: <b>Every edit</b> (recommended) or <b>On publish</b>.</li>
+          <li>Paste the token of the <b>luvhub</b> private app and click <b>Turn on sync</b>.</li>
+        </ol>
+        <Callout>
+          The token is stored encrypted as the repository secret <code>LUVHUB_HUBSPOT_TOKEN</code>; luvhub doesn&apos;t keep it. If you
+          rotate it in HubSpot, repeat the last step with the new token.
+        </Callout>
+        <Callout kind="warn">
+          From then on <b>Lovable is the source</b>: content edits made in HubSpot are replaced on the next sync. SEO title and URL can be
+          changed in HubSpot. To republish by hand: the repository&apos;s <i>Actions</i> tab → <i>luvhub</i> → <i>Run workflow</i>.
         </Callout>
       </>
     ),

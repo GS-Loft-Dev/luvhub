@@ -196,3 +196,54 @@ export async function dispatchWorkflow(conn: GitHubConnection, repo: string, wor
     }
   }
 }
+
+export interface SyncRun {
+  id: number;
+  /** queued, in_progress, completed… */
+  status: string;
+  /** success, failure, cancelled… once completed. */
+  conclusion: string | null;
+  event: string;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+  sha: string;
+  /** First line of the commit that started the run (the Lovable edit). */
+  message: string | null;
+  actor: string | null;
+}
+
+/** Latest runs of one workflow, newest first. Empty when the workflow doesn't exist yet. */
+export async function listWorkflowRuns(conn: GitHubConnection, repo: string, workflowFile: string, perPage = 20): Promise<SyncRun[]> {
+  try {
+    const r = await api<{
+      workflow_runs: {
+        id: number;
+        status: string;
+        conclusion: string | null;
+        event: string;
+        created_at: string;
+        updated_at: string;
+        html_url: string;
+        head_sha: string;
+        head_commit?: { message?: string } | null;
+        actor?: { login: string } | null;
+      }[];
+    }>(conn.token, `/repos/${checkRepoName(repo)}/actions/workflows/${encodeURIComponent(workflowFile)}/runs?per_page=${perPage}`);
+    return r.workflow_runs.map((w) => ({
+      id: w.id,
+      status: w.status,
+      conclusion: w.conclusion,
+      event: w.event,
+      createdAt: w.created_at,
+      updatedAt: w.updated_at,
+      url: w.html_url,
+      sha: w.head_sha.slice(0, 7),
+      message: w.head_commit?.message?.split("\n")[0] ?? null,
+      actor: w.actor?.login ?? null,
+    }));
+  } catch (e) {
+    if (e instanceof GitHubError && e.status === 404) return [];
+    throw e;
+  }
+}
