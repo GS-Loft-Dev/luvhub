@@ -201,7 +201,7 @@ export default function Studio() {
     setBusy(true);
     const started = performance.now();
     try {
-      const { id } = await api<{ id: string }>("/api/jobs", {
+      const { id, pending } = await api<{ id: string; pending?: boolean }>("/api/jobs", {
         method: "POST",
         body: JSON.stringify({
           source: mode,
@@ -212,6 +212,14 @@ export default function Studio() {
           themeName: themeName || project?.name || undefined,
         }),
       });
+      // Heavy pages convert in the background on Netlify: wait until it's stored.
+      for (let tries = 0; pending; tries++) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const st = await api<{ state: "running" | "ready" | "failed"; error?: string }>(`/api/jobs/${id}/status`);
+        if (st.state === "ready") break;
+        if (st.state === "failed") throw new Error(st.error ?? "The conversion failed.");
+        if (tries > 400) throw new Error("The conversion is taking too long.");
+      }
       setJobAndUrl(await api<JobSummary>(`/api/jobs/${id}`));
       setLastSeconds((performance.now() - started) / 1000);
     } catch (e) {

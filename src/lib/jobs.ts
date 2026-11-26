@@ -28,9 +28,9 @@ function safeId(id: string): string {
 const jobKey = (id: string) => `jobs/${safeId(id)}/job.json`;
 const assetKey = (id: string, assetId: string) => `jobs/${safeId(id)}/assets/${safeId(assetId)}`;
 
-export async function createJob(owner: string, source: Job["source"], model: ThemeModel, pages: RenderedPage[]): Promise<Job> {
+export async function createJob(owner: string, source: Job["source"], model: ThemeModel, pages: RenderedPage[], givenId?: string): Promise<Job> {
   const store = getStore();
-  const id = randomBytes(9).toString("base64url");
+  const id = givenId ? safeId(givenId) : randomBytes(9).toString("base64url");
   const written = new Set<string>();
   for (const page of pages) {
     for (const asset of page.assets) {

@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
-import { convertPages } from "@/lib/converter";
+import { startConversion } from "@/lib/conversion";
 import { HttpError, handle } from "@/lib/http";
 import { createEmbedUrl, lovableAuth } from "@/lib/integrations/lovable";
-import { createJob } from "@/lib/jobs";
-import { isAllowedUrl, isServerless, renderRoutes } from "@/lib/render";
+import { isAllowedUrl, isServerless } from "@/lib/render";
 import { getSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -58,14 +57,14 @@ export const POST = handle(async (req: Request) => {
     label = new URL(url).hostname;
   }
 
-  const pages = await renderRoutes({ url, routes, embedParentOrigin });
-  const themeName = body.themeName?.trim() || label.split(".")[0];
-  const model = convertPages(pages, { themeName });
-  const job = await createJob(
-    session.sid!,
-    { kind: body.source, label, url: body.source === "url" ? url : undefined, projectId: body.projectId },
-    model,
-    pages,
-  );
-  return NextResponse.json({ id: job.id });
+  // On Netlify this runs in a background function: `pending` until it's stored.
+  const { id, pending } = await startConversion({
+    owner: session.sid!,
+    source: { kind: body.source, label, url: body.source === "url" ? url : undefined, projectId: body.projectId },
+    url,
+    embedParentOrigin,
+    routes,
+    themeName: body.themeName?.trim() || label.split(".")[0],
+  });
+  return NextResponse.json({ id, pending });
 });

@@ -10,3 +10,9 @@
 [build.environment]
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
+
+# The conversion runs in a background function (up to 15 minutes), because a
+# normal function has about 30 seconds and heavy Lovable pages take longer.
+[functions."convert-background"]
+  node_bundler = "esbuild"
+  external_node_modules = ["playwright-core", "@sparticuz/chromium-min", "@netlify/blobs"]
