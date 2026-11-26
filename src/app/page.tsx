@@ -213,9 +213,17 @@ export default function Studio() {
         }),
       });
       // Heavy pages convert in the background on Netlify: wait until it's stored.
-      for (let tries = 0; pending; tries++) {
+      for (let tries = 0, misses = 0; pending; tries++) {
         await new Promise((r) => setTimeout(r, 2500));
-        const st = await api<{ state: "running" | "ready" | "failed"; error?: string }>(`/api/jobs/${id}/status`);
+        let st: { state: "running" | "ready" | "failed"; error?: string };
+        try {
+          st = await api(`/api/jobs/${id}/status`);
+          misses = 0;
+        } catch (e) {
+          // A slow start of the server (a 504 now and then) isn't the conversion failing.
+          if (++misses >= 6) throw e;
+          continue;
+        }
         if (st.state === "ready") break;
         if (st.state === "failed") throw new Error(st.error ?? "The conversion failed.");
         if (tries > 400) throw new Error("The conversion is taking too long.");
