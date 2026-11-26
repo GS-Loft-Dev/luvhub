@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { chromium, type Browser, type Frame, type Page } from "playwright-core";
 import type { RenderedPage } from "./converter/types";
+import { captureLiveApp } from "./live-app";
 
 const CHROME_CANDIDATES = [
   "/usr/bin/chromium",
@@ -51,6 +52,8 @@ export interface RenderOptions {
   timeoutMs?: number;
   /** Extra Chromium flags (used by tests to reach loopback servers). */
   chromeArgs?: string[];
+  /** Also copy the app's own JS, CSS and media (once, from the first route). */
+  captureApp?: boolean;
 }
 
 /** Default pack for @sparticuz/chromium-min; must match the installed package version. */
@@ -110,7 +113,7 @@ export async function renderRoutes(opts: RenderOptions): Promise<RenderedPage[]>
   const { browser, cleanup } = await launchBrowser(opts.chromeArgs ?? []);
   try {
     const out: RenderedPage[] = [];
-    for (const route of opts.routes) out.push(await renderOne(browser, opts, route));
+    for (const [i, route] of opts.routes.entries()) out.push(await renderOne(browser, opts, route, opts.captureApp === true && i === 0));
     return out;
   } finally {
     await cleanup();
@@ -125,7 +128,7 @@ function routeUrl(base: string, route: string): string {
   return url.toString();
 }
 
-async function renderOne(browser: Browser, opts: RenderOptions, route: string): Promise<RenderedPage> {
+async function renderOne(browser: Browser, opts: RenderOptions, route: string, withApp = false): Promise<RenderedPage> {
   const timeout = opts.timeoutMs ?? (Number(process.env.RENDER_TIMEOUT_MS) || 45_000);
   const viewport = opts.viewport ?? { width: 1440, height: 900 };
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
@@ -151,7 +154,8 @@ async function renderOne(browser: Browser, opts: RenderOptions, route: string): 
     await frame.waitForSelector("#root > *, body > *", { timeout }).catch(() => undefined);
     await autoScroll(frame);
     const captured = await frame.evaluate(capturePage);
-    return { route, url: target, ...captured };
+    const app = withApp ? await captureLiveApp(frame).catch(() => undefined) : undefined;
+    return { route, url: target, ...captured, ...(app ? { app } : {}) };
   } finally {
     await context.close();
   }

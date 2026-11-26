@@ -102,5 +102,6 @@ export function convertPages(pages: RenderedPage[], options: ConvertOptions): Th
     modules,
     assets: [...assets.values()],
     warnings,
+    ...(pages.find((p) => p.app)?.app ? { app: pages.find((p) => p.app)!.app } : {}),
   };
 }

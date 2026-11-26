@@ -96,6 +96,9 @@ export function fingerprint(model: ThemeModel, assetBytes: Map<string, Buffer>):
     h.update(a.fileName).update("\0").update(assetBytes.get(a.id) ?? Buffer.alloc(0)).update("\0");
   }
   h.update(JSON.stringify(model.pages.map((p) => [p.route, p.label, p.description ?? "", p.templateName])));
+  for (const f of [...(model.app?.files ?? [])].sort((a, b) => a.path.localeCompare(b.path))) {
+    h.update(f.path).update("\0").update(f.text ?? f.base64 ?? "").update("\0");
+  }
   return h.digest("hex");
 }
 
@@ -116,10 +119,10 @@ export async function runSync(opts: SyncOptions): Promise<SyncResult> {
       throw new Error(`Lovable didn't give a preview of project ${projectId} (${(e as Error).message}). Check the LUVHUB_LOVABLE_API_KEY secret.`);
     });
     log(`Rendering Lovable's latest preview of the project (${c.routes.join(", ")})`);
-    rendered = await renderRoutes({ url, routes: c.routes, embedParentOrigin: parentOrigin, chromeArgs: opts.chromeArgs });
+    rendered = await renderRoutes({ url, routes: c.routes, embedParentOrigin: parentOrigin, chromeArgs: opts.chromeArgs, captureApp: true });
   } else if (c.source.type === "url") {
     log(`Rendering ${c.source.url} (${c.routes.join(", ")})`);
-    rendered = await renderRoutes({ url: c.source.url, routes: c.routes });
+    rendered = await renderRoutes({ url: c.source.url, routes: c.routes, captureApp: true });
   } else {
     let dir: string | null | undefined = opts.prebuiltDir;
     if (!dir) {
@@ -141,6 +144,8 @@ export async function runSync(opts: SyncOptions): Promise<SyncResult> {
   const assetBytes = new Map<string, Buffer>();
   for (const page of rendered) for (const a of page.assets) assetBytes.set(a.id, Buffer.from(a.base64, "base64"));
   for (const w of model.warnings) log(`warning: ${w}`);
+  if (model.app) log(`Lovable's app: ${model.app.files.length} files (${model.app.entry}), run on the HubSpot page.`);
+  else log("warning: Lovable's app wasn't captured: the HubSpot page shows the converted HTML without its JavaScript.");
 
   const hash = fingerprint(model, assetBytes);
   const allLinked = model.pages.every((p) => p.hubspotPageId);
@@ -156,6 +161,8 @@ export async function runSync(opts: SyncOptions): Promise<SyncResult> {
   const publish = await publishToHubSpot(conn, model, assetBytes);
   for (const p of publish.pages) log(`page ${p.route} "${p.title}": ${p.status}${p.error ? ` (${p.error})` : ""}`);
   for (const s of publish.steps.filter((x) => x.status === "failed")) log(`failed ${s.path}: ${s.error}`);
+  for (const s of publish.steps.filter((x) => x.status === "skipped" && x.error?.startsWith("Lovable app"))) log(`warning ${s.path}: ${s.error}`);
+  if (model.app) log(model.appEntryUrl ? `Lovable's app runs on the page: ${model.appEntryUrl}` : "warning: Lovable's app couldn't be uploaded: the page shows the converted HTML only.");
 
   let next = recordPages(c, model);
   if (publish.ok) next = { ...next, lastSync: { at: new Date().toISOString(), hash, portalId: conn.portalId } };

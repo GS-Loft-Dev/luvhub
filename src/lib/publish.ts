@@ -10,6 +10,7 @@ import {
   validateSourceFile,
   type HubSpotConnection,
 } from "./integrations/hubspot";
+import { rewriteApp, storagePath } from "./live-app";
 
 export interface PublishStep {
   path: string;
@@ -73,6 +74,42 @@ async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>
   return results;
 }
 
+/**
+ * Uploads the app's files to the File Manager with their folder layout, then
+ * sets model.appEntryUrl. A marker file first tells where the folder is
+ * served, so the code can point at it before it is uploaded. If any code file
+ * fails, the page stays the converted HTML only.
+ */
+async function uploadApp(conn: HubSpotConnection, model: ThemeModel, folder: string): Promise<PublishStep[]> {
+  const app = model.app!;
+  const marker = "luvhub-app.txt";
+  let base: string;
+  try {
+    const url = await uploadFile(conn, { name: marker, contentType: "text/plain", bytes: Buffer.from("Lovable app files uploaded by luvhub.\n") }, folder);
+    base = url.slice(0, url.length - marker.length);
+    if (!url.endsWith(marker)) throw new Error(`unexpected URL ${url}`);
+  } catch (e) {
+    return [{ path: `${folder}/${marker}`, status: "failed", error: `Lovable's app not uploaded: ${(e as Error).message}` }];
+  }
+  const files = rewriteApp(app, base);
+  const steps = await pool(files, CONCURRENCY, async (f): Promise<PublishStep> => {
+    const rel = storagePath(f.path);
+    const dir = rel.includes("/") ? `${folder}/${rel.slice(0, rel.lastIndexOf("/"))}` : folder;
+    const name = rel.split("/").pop()!;
+    const bytes = f.text !== undefined ? Buffer.from(f.text, "utf8") : Buffer.from(f.base64 ?? "", "base64");
+    try {
+      const url = await uploadFile(conn, { name, contentType: f.contentType, bytes }, dir);
+      if (url !== `${base}${rel}`) throw new Error(`HubSpot stored it at ${url}`);
+      return { path: `${folder}/${rel}`, status: "uploaded" };
+    } catch (e) {
+      return { path: `${folder}/${rel}`, status: "failed", error: (e as Error).message };
+    }
+  });
+  const codeFailed = steps.some((s, i) => s.status === "failed" && /\.(m?js|css)$/i.test(files[i].path));
+  if (!codeFailed) model.appEntryUrl = `${base}${storagePath(app.entry)}`;
+  return steps;
+}
+
 export async function publishToHubSpot(
   conn: HubSpotConnection,
   model: ThemeModel,
@@ -95,6 +132,13 @@ export async function publishToHubSpot(
     }
   });
   steps.push(...assetSteps);
+
+  // 1b. Lovable's own app, on synced pages: the page then runs exactly like on Lovable.
+  model.appEntryUrl = undefined;
+  // Its failures don't fail the publish: the page then stays the converted HTML.
+  if (model.app && model.layout === "sync") {
+    for (const s of await uploadApp(conn, model, `${folder}/app`)) steps.push(s.status === "failed" ? { ...s, status: "skipped", error: `Lovable app: ${s.error}` } : s);
+  }
 
   // 2. Theme files go to the Design Manager, validated first.
   const files = writeTheme(model, { kind: "url", urls });

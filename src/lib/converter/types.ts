@@ -111,6 +111,28 @@ export interface ThemeModel {
   modules: ModuleDef[];
   assets: AssetRef[];
   warnings: string[];
+  /** Lovable's own app (JS, CSS, media), run on top of the converted page so it behaves exactly like Lovable. */
+  app?: LiveApp;
+  /** Public URL of the app's entry script once uploaded to HubSpot (set while publishing). */
+  appEntryUrl?: string;
+}
+
+/** A file of the source app, by its path on the source site (no leading slash). */
+export interface AppFile {
+  path: string;
+  contentType: string;
+  /** JS and CSS, which get their paths rewritten. */
+  text?: string;
+  /** Everything else (images, videos, fonts). */
+  base64?: string;
+}
+
+export interface LiveApp {
+  /** Path of the entry module, e.g. "assets/index-abc.js". */
+  entry: string;
+  files: AppFile[];
+  /** Third-party scripts from the source <head> (absolute URLs), e.g. a reviews widget. */
+  scripts: string[];
 }
 
 /** Output of the renderer for one route. */
@@ -125,6 +147,8 @@ export interface RenderedPage {
   htmlLang: string;
   bodyAttrs: string;
   assets: (AssetRef & { base64: string })[];
+  /** The source app's files, when the renderer was asked for them. */
+  app?: LiveApp;
 }
 
 export type PageType = "landing" | "site";

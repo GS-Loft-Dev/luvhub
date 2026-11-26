@@ -1,3 +1,4 @@
+import { routeShim } from "../live-app";
 import { ASSET_SCHEME, type FieldDef, type ModuleDef, type ThemeModel } from "./types";
 
 /**
@@ -101,6 +102,11 @@ const BEHAVIOURS = `(function () {
   });
 })();`;
 
+/** Lovable's app runs on synced pages once its files are on HubSpot. */
+function live(model: ThemeModel): boolean {
+  return model.layout === "sync" && Boolean(model.app && model.appEntryUrl);
+}
+
 function baseLayout(model: ThemeModel): string {
   return `<!--
   templateType: none
@@ -113,12 +119,13 @@ function baseLayout(model: ThemeModel): string {
     {% if page_meta.meta_description %}<meta name="description" content="{{ page_meta.meta_description }}">{% endif %}
     <meta name="viewport" content="width=device-width, initial-scale=1">
 ${model.headLinks.map((l) => `    ${l}`).join("\n")}
+${live(model) ? model.app!.scripts.map((src) => `    <script src="${src.replace(/"/g, "&quot;")}" async></script>`).join("\n") : ""}
     {{ require_css(get_asset_url("../../css/main.css")) }}
     {{ standard_header_includes }}
   </head>
   <body${model.bodyAttrs ? ` ${model.bodyAttrs}` : ""}>
     {% block body %}{% endblock body %}
-    <script>${BEHAVIOURS}</script>
+${live(model) ? "" : `    <script>${BEHAVIOURS}</script>`}
     {{ standard_footer_includes }}
   </body>
 </html>
@@ -182,6 +189,13 @@ function pageTemplate(model: ThemeModel, templateName: string, includedIds: Set<
   for (const close of page.wrapperClose) {
     depth--;
     push(close);
+  }
+  if (live(model)) {
+    // The app mounts on #root and replaces the converted HTML with itself.
+    lines.unshift('<div id="root">');
+    lines.push("</div>");
+    lines.push(`<script>${routeShim(page.route)}</script>`);
+    lines.push(`<script type="module" crossorigin src="${model.appEntryUrl!.replace(/"/g, "&quot;")}"></script>`);
   }
 
   return `<!--
