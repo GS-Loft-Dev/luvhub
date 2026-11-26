@@ -70,6 +70,7 @@ export function rewriteApp(app: LiveApp, base: string): AppFile[] {
     });
     // Vite: const x=function(e){return"/"+e} turns "assets/chunk.js" into a root URL.
     text = text.replace(/function\((\w+)\)\{return"\/"\+\1\}/g, (_m, v: string) => `function(${v}){return${JSON.stringify(base)}+${v}}`);
+    if (/\.m?js$/i.test(f.path)) text = patchRoute(text, app.route);
     return { ...f, text };
   });
 }
@@ -81,19 +82,25 @@ export function rewriteApp(app: LiveApp, base: string): AppFile[] {
 export async function captureLiveApp(frame: Frame): Promise<LiveApp | undefined> {
   const info = await frame.evaluate(async () => {
     const entry = document.querySelector<HTMLScriptElement>('script[type="module"][src]');
-    // Third-party scripts from the page's own HTML; the ones the app adds while
-    // running (pixels, tag managers) come back by themselves when it runs.
+    // From the page's own HTML: third-party scripts (the ones the app adds
+    // while running, pixels or tag managers, come back when it runs) and the
+    // app's stylesheets.
     let scripts: string[] = [];
+    let styles: string[] = [];
     try {
       const doc = new DOMParser().parseFromString(await (await fetch(location.href)).text(), "text/html");
       scripts = [...doc.querySelectorAll("head script[src]")]
         .map((s) => new URL(s.getAttribute("src")!, location.href))
         .filter((u) => /^https?:$/.test(u.protocol) && u.origin !== location.origin)
         .map((u) => u.href);
+      styles = [...doc.querySelectorAll('link[rel="stylesheet"][href]')]
+        .map((l) => new URL(l.getAttribute("href")!, location.href))
+        .filter((u) => u.origin === location.origin)
+        .map((u) => decodeURIComponent(u.pathname.replace(/^\/+/, "")));
     } catch {
-      // no scripts then
+      // none then
     }
-    return { entry: entry?.src ?? null, scripts };
+    return { entry: entry?.src ?? null, scripts, styles, route: location.pathname || "/" };
   });
   if (!info.entry) return undefined;
   const entryUrl = new URL(info.entry);
@@ -101,8 +108,8 @@ export async function captureLiveApp(frame: Frame): Promise<LiveApp | undefined>
   const entry = entryUrl.pathname.replace(/^\/+/, "");
 
   const files = new Map<string, AppFile>();
-  const seen = new Set<string>([entry]);
-  let queue = [entry];
+  const seen = new Set<string>([entry, ...info.styles]);
+  let queue = [entry, ...info.styles];
   let bytes = 0;
   while (queue.length && files.size < MAX_FILES) {
     const batch = queue.splice(0, 12);
@@ -148,22 +155,23 @@ export async function captureLiveApp(frame: Frame): Promise<LiveApp | undefined>
     queue = [...queue, ...next];
   }
   if (!files.has(entry)) return undefined;
-  return { entry, files: [...files.values()], scripts: info.scripts };
+  return { entry, route: info.route, styles: info.styles.filter((p) => files.has(p)), files: [...files.values()], scripts: info.scripts };
 }
 
 /**
- * Runs before the app: the app's router knows the Lovable route ("/"), not the
- * HubSpot address, so the address shows the route while the app reads it and
- * is put back as soon as the app has drawn the page.
+ * The app's router knows the page by its Lovable route ("/restart-program"),
+ * not by its HubSpot address, and would show its own "page not found". Route
+ * definitions and redirects to that route read the page's real address
+ * instead, set by pathScript() before the app starts.
  */
-export function routeShim(route: string): string {
-  return `(function () {
-  var route = ${JSON.stringify(route)}, real = location.pathname + location.search + location.hash;
-  if (location.pathname === route) return;
-  history.replaceState(history.state, "", route + location.search + location.hash);
-  var done = false, root = document.getElementById("root");
-  function back() { if (!done) { done = true; history.replaceState(history.state, "", real); } }
-  if (root && window.MutationObserver) new MutationObserver(function () { setTimeout(back, 0); }).observe(root, { childList: true });
-  setTimeout(back, 5000);
-})();`;
+export function patchRoute(js: string, route: string): string {
+  const lit = JSON.stringify(route);
+  const esc = lit.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+  const expr = `(window.__luvhubPath||${lit})`;
+  return js.replace(new RegExp(`(\\b(?:path|to)\\s*:\\s*|\\bnavigate\\(\\s*)${esc}`, "g"), `$1${expr}`);
+}
+
+/** Runs before the app: the page's address, for patchRoute(). */
+export function pathScript(): string {
+  return `window.__luvhubPath = location.pathname.replace(/\\/+$/, "") || "/";`;
 }

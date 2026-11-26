@@ -115,6 +115,8 @@ export interface ThemeModel {
   app?: LiveApp;
   /** Public URL of the app's entry script once uploaded to HubSpot (set while publishing). */
   appEntryUrl?: string;
+  /** Public URL of the uploaded app folder, ending in "/" (set while publishing). */
+  appBase?: string;
 }
 
 /** A file of the source app, by its path on the source site (no leading slash). */
@@ -130,6 +132,10 @@ export interface AppFile {
 export interface LiveApp {
   /** Path of the entry module, e.g. "assets/index-abc.js". */
   entry: string;
+  /** The app's own route for the page, after its redirects (e.g. "/restart-program"). */
+  route: string;
+  /** The app's stylesheets from its HTML, as paths among `files`. */
+  styles: string[];
   files: AppFile[];
   /** Third-party scripts from the source <head> (absolute URLs), e.g. a reviews widget. */
   scripts: string[];

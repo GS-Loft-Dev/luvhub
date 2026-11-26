@@ -59,6 +59,10 @@ describe.runIf(hasChrome)("rendering a client-side app", () => {
     expect(page.html).toContain("Rendered by JavaScript");
     expect(page.css).toContain(".card");
     expect(page.css).toMatch(/url\(h2h-asset:a\d+\)/);
+    // The stylesheet's own text: shorthands with var() survive.
+    expect(page.css).toContain("background:linear-gradient(135deg,#d9d9d9,hsl(var(--primary)))");
+    expect(page.headLinks.some((l) => l.includes("fonts.googleapis.com"))).toBe(true);
+    expect(page.css).not.toContain("@import");
     expect(page.headLinks.join()).toContain("fonts.googleapis.com");
     expect(page.assets.map((a) => a.sourceUrl).sort()).toEqual([`${base}/assets/bg.svg`, `${base}/assets/logo.svg`]);
     expect(page.html).toContain('href="/about?x=1"');

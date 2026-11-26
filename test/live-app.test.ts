@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { convertPages } from "../src/lib/converter";
 import { writeTheme } from "../src/lib/converter/theme";
 import type { LiveApp, ThemeModel } from "../src/lib/converter/types";
-import { findRefs, rewriteApp, routeShim, storagePath } from "../src/lib/live-app";
+import { findRefs, patchRoute, pathScript, rewriteApp, storagePath } from "../src/lib/live-app";
 import { publishToHubSpot } from "../src/lib/publish";
 
 const entryJs =
@@ -13,6 +13,8 @@ const entryJs =
   'const logo="/assets/logo.png",video="/__l5e/assets-v1/u1/hero loop.mp4",api="/api/send";';
 const app: LiveApp = {
   entry: "assets/index-1.js",
+  route: "/restart-program",
+  styles: ["assets/Footer-abc.css"],
   scripts: ["https://widget.example/tp.js"],
   files: [
     { path: "assets/index-1.js", contentType: "text/javascript", text: entryJs },
@@ -49,11 +51,22 @@ describe("Lovable's app", () => {
     expect(storagePath("__l5e/a b/c.mp4")).toBe("l5e/a-b/c.mp4");
   });
 
-  it("lets the app's router see its own route, then puts the address back", () => {
-    const shim = routeShim("/");
-    expect(shim).toContain('var route = "/"');
-    expect(shim).toContain("history.replaceState(history.state, \"\", real)");
-    expect(shim).not.toMatch(/\{\{|\{%|\{#/);
+  it("makes the app's router answer to the HubSpot address instead of its own 404", () => {
+    const routes =
+      'E.jsx(an,{path:"/restart-program",element:E.jsx(v_,{})}),E.jsx(an,{path:"/",element:E.jsx(bu,{to:"/restart-program",replace:!0})}),' +
+      'E.jsx(an,{path:"/thank-you",element:x}),n("/restart-program"),navigate("/restart-program"),a="/restart-program/x"';
+    const out = patchRoute(routes, "/restart-program");
+    const expr = '(window.__luvhubPath||"/restart-program")';
+    expect(out).toContain(`path:${expr},element`);
+    expect(out).toContain(`{to:${expr},replace`);
+    expect(out).toContain(`navigate(${expr})`);
+    expect(out).toContain('path:"/thank-you"');
+    expect(out).toContain('n("/restart-program")');
+    expect(out).toContain('a="/restart-program/x"');
+    const w = { location: { pathname: "/restartprogram/" } } as { location: { pathname: string }; __luvhubPath?: string };
+    new Function("window", "location", pathScript())(w, w.location);
+    expect(w.__luvhubPath).toBe("/restartprogram");
+    expect(pathScript()).not.toMatch(/\{\{|\{%|\{#/);
   });
 });
 
@@ -88,10 +101,12 @@ describe("synced page with Lovable's app", () => {
     const template = String(files.get("templates/home.html"));
     expect(template).toMatch(/\{% block body %\}\n<div id="root">/);
     expect(template).toContain(`<script type="module" crossorigin src="${model.appEntryUrl}"></script>`);
-    expect(template.indexOf('var route = "/"')).toBeGreaterThan(0);
-    expect(template.indexOf('var route = "/"')).toBeLessThan(template.indexOf('type="module"'));
+    expect(template.indexOf("__luvhubPath")).toBeGreaterThan(0);
+    expect(template.indexOf("__luvhubPath")).toBeLessThan(template.indexOf('type="module"'));
     const base = String(files.get("templates/layouts/base.html"));
     expect(base).toContain('<script src="https://widget.example/tp.js" async></script>');
+    expect(base).toContain('<link rel="stylesheet" href="https://cdn.example/hubfs/1/lovable-to-hubspot/acme/app/assets/Footer-abc.css">');
+    expect(base.indexOf("main.css")).toBeLessThan(base.indexOf("Footer-abc.css"));
     expect(base).not.toContain("luvhub-closed");
   });
 

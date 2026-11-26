@@ -106,7 +106,10 @@ async function uploadApp(conn: HubSpotConnection, model: ThemeModel, folder: str
     }
   });
   const codeFailed = steps.some((s, i) => s.status === "failed" && /\.(m?js|css)$/i.test(files[i].path));
-  if (!codeFailed) model.appEntryUrl = `${base}${storagePath(app.entry)}`;
+  if (!codeFailed) {
+    model.appEntryUrl = `${base}${storagePath(app.entry)}`;
+    model.appBase = base;
+  }
   return steps;
 }
 
@@ -135,6 +138,7 @@ export async function publishToHubSpot(
 
   // 1b. Lovable's own app, on synced pages: the page then runs exactly like on Lovable.
   model.appEntryUrl = undefined;
+  model.appBase = undefined;
   // Its failures don't fail the publish: the page then stays the converted HTML.
   if (model.app && model.layout === "sync") {
     for (const s of await uploadApp(conn, model, `${folder}/app`)) steps.push(s.status === "failed" ? { ...s, status: "skipped", error: `Lovable app: ${s.error}` } : s);

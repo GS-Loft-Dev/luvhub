@@ -2,3 +2,5 @@
 body{font-family:Inter,sans-serif;margin:0}
 .hero{background:url("./bg.svg") center/cover;padding:80px}
 .card{border:1px solid #ddd;padding:16px}
+:root{--primary:142 70% 45%}
+.gradient-text{background:linear-gradient(135deg,#d9d9d9,hsl(var(--primary)));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}

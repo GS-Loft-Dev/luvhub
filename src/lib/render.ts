@@ -308,6 +308,32 @@ async function capturePage() {
   const headLinks = new Set<string>();
   let css = "";
   for (const sheet of Array.from(document.styleSheets)) {
+    // The stylesheet's own text when there is one: reading it back rule by
+    // rule loses shorthands that use var(), such as
+    // background: linear-gradient(…, hsl(var(--primary))).
+    let raw: string | null = null;
+    const owner = sheet.ownerNode;
+    if (sheet.href && isSameOrigin(sheet.href)) {
+      try {
+        const res = await fetch(sheet.href, { credentials: "include" });
+        if (res.ok) raw = await res.text();
+      } catch {
+        // fall back to the rules
+      }
+    } else if (!sheet.href && owner instanceof HTMLStyleElement && owner.textContent?.trim()) {
+      // Style tags filled through insertRule have no text: those use the rules.
+      raw = owner.textContent;
+    }
+    if (raw !== null) {
+      const base = sheet.href ?? location.href;
+      raw = raw.replace(/@import\s+(?:url\(\s*)?["']?([^"')\s;]+)["']?\s*\)?[^;]*;/g, (_m, u: string) => {
+        const href = abs(u, base);
+        if (href) headLinks.add(`<link rel="stylesheet" href="${href}">`);
+        return "";
+      });
+      css += `${await rewriteUrls(raw, base)}\n`;
+      continue;
+    }
     let rules: CSSRuleList;
     try {
       rules = sheet.cssRules;
