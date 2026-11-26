@@ -25,7 +25,13 @@ async function main() {
 
   const before = await readFile(configPath, "utf8");
   const config = parseConfig(before);
-  const result = await runSync({ cwd: dirname(configPath), config, token, force });
+  const lovableKey = (process.env.LOVABLE_API_KEY ?? "").trim() || undefined;
+  if (config.source.type === "lovable" && process.env.GITHUB_EVENT_NAME === "push") {
+    // Lovable pushes the edit and rebuilds its preview at the same time: give the preview a head start.
+    console.log("Waiting 60s for Lovable to rebuild the preview of this edit…");
+    await new Promise((r) => setTimeout(r, 60_000));
+  }
+  const result = await runSync({ cwd: dirname(configPath), config, token, lovableKey, force });
 
   const after = serializeConfig(result.config);
   if (after !== before) await writeFile(configPath, after);

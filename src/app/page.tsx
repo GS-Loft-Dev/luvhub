@@ -36,7 +36,7 @@ interface JobSummary {
   id: string;
   source: { kind: string; label: string; url?: string };
   createdAt?: string;
-  automation?: { repo: string; branch: string; source: "build" | "url"; at: string; actionsUrl: string } | null;
+  automation?: { repo: string; branch: string; source: "lovable" | "build" | "url"; at: string; actionsUrl: string } | null;
   theme: { name: string; label: string };
   pageType: "landing" | "site";
   warnings: string[];
@@ -557,7 +557,7 @@ export default function Studio() {
               <div className="inner">
                 <div className="inner-head">
                   <span><Port c={synced ? "g" : "r"} /> {synced ? "On" : "Off"}</span>
-                  {job?.automation && <code>{job.automation.source === "build" ? "every edit" : "on publish"}</code>}
+                  {job?.automation && <code>{job.automation.source === "url" ? "on publish" : "every edit"}</code>}
                 </div>
                 <p className="copy">
                   {job?.automation ? <>Every push to <b>{job.automation.repo}</b> updates the HubSpot pages.</> : "A GitHub Action updates the HubSpot pages after every Lovable edit."}
@@ -964,10 +964,13 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
   const [owner, setOwner] = useState(job.automation?.repo.split("/")[0] ?? "");
   const [repo, setRepo] = useState(job.automation?.repo ?? "");
   const [filter, setFilter] = useState("");
-  const [source, setSource] = useState<"build" | "url">(job.automation?.source ?? "build");
+  // Always Lovable's own render: the project's preview (every edit) or the published site.
+  const fromProject = job.source.kind === "lovable";
   const [url, setUrl] = useState(job.source.url?.startsWith("https://") ? job.source.url : "");
   const [token, setToken] = useState("");
+  const [lovableKey, setLovableKey] = useState("");
   const [secret, setSecret] = useState<boolean | null>(null);
+  const [lovableSecret, setLovableSecret] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<AutomateResult | null>(null);
@@ -991,7 +994,12 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
   useEffect(() => {
     setSecret(null);
     if (!gh || !repo) return;
-    api<{ exists: boolean }>(`/api/github/secret?repo=${encodeURIComponent(repo)}`).then((r) => setSecret(r.exists)).catch(() => setSecret(false));
+    api<{ exists: boolean; lovable?: boolean }>(`/api/github/secret?repo=${encodeURIComponent(repo)}`)
+      .then((r) => {
+        setSecret(r.exists);
+        setLovableSecret(Boolean(r.lovable));
+      })
+      .catch(() => setSecret(false));
   }, [gh, repo]);
 
   const loginHref = `/api/auth/github/login?return=${encodeURIComponent(`/?job=${job.id}&automate=1`)}`;
@@ -1001,7 +1009,8 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
     if (!repo.startsWith(`${login}/`)) setRepo("");
   };
   const needsToken = secret === false;
-  const ready = Boolean(gh && owner && repo && (source === "build" || /^https:\/\//.test(url)) && (!needsToken || token.trim()) && secret !== null);
+  const sourceReady = fromProject ? lovableSecret || Boolean(lovableKey.trim()) : /^https:\/\//.test(url);
+  const ready = Boolean(gh && owner && repo && sourceReady && (!needsToken || token.trim()) && secret !== null);
 
   const submit = async () => {
     setBusy(true);
@@ -1009,10 +1018,16 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
     try {
       const r = await api<AutomateResult>(`/api/jobs/${job.id}/automate`, {
         method: "POST",
-        body: JSON.stringify({ repo, source, url: source === "url" ? url : undefined, hubspotToken: token.trim() || undefined }),
+        body: JSON.stringify({
+          repo,
+          url: fromProject ? undefined : url,
+          hubspotToken: token.trim() || undefined,
+          lovableKey: fromProject ? lovableKey.trim() || undefined : undefined,
+        }),
       });
       setDone(r);
       setToken("");
+      setLovableKey("");
       onDone(await api<JobSummary>(`/api/jobs/${job.id}`));
     } catch (e) {
       setErr((e as Error).message);
@@ -1030,7 +1045,7 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
             <button className="icon-btn" onClick={onClose} disabled={busy} aria-label="Close"><I.close /></button>
           </div>
           <p className="copy" style={{ margin: "8px 0 0" }}>
-            A GitHub Action in your Lovable project&apos;s repository rebuilds the site and updates the same HubSpot pages after every change, titles included.
+            A GitHub Action in your Lovable project&apos;s repository reads the page as Lovable renders it, exactly like this conversion, and updates the same HubSpot pages after every change, titles included.
           </p>
         </div>
 
@@ -1112,21 +1127,42 @@ function SyncPanel({ job, setup, onClose, onDone, onGithubChange }: {
               </div>
             </div>
 
-            <div className={`inner sync-row ${gh ? "" : "dim"}`}>
+            <div className={`inner sync-row ${repo ? "" : "dim"}`}>
               <span className="sn">3</span>
-              <div>
-                <b>Update HubSpot</b>
-                <small>{source === "build" ? "After every edit in Lovable: the Action builds the code in the repository." : "After you press Publish in Lovable: the Action reads the live site."}</small>
-              </div>
-              <div className="sync-field">
-                <div className="mini-tabs" role="tablist" aria-label="When to update">
-                  <button role="tab" aria-selected={source === "build"} className={source === "build" ? "on" : ""} onClick={() => setSource("build")}>Every edit</button>
-                  <button role="tab" aria-selected={source === "url"} className={source === "url" ? "on" : ""} onClick={() => setSource("url")}>On publish</button>
-                </div>
-                {source === "url" && (
-                  <input className="nf" type="url" placeholder="https://your-project.lovable.app" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Published site address" />
-                )}
-              </div>
+              {fromProject ? (
+                <>
+                  <div>
+                    <b>Lovable API key</b>
+                    <small>
+                      luvhub asks Lovable for the preview of your latest edit, the same render you converted here, so HubSpot updates after every edit.
+                      Create it in Lovable: <i>Workspace settings → API keys</i>. It is stored encrypted as a GitHub secret.
+                    </small>
+                  </div>
+                  <div className="sync-field">
+                    {lovableSecret ? <span className="sync-who"><span className="dot-ok" /> Already saved in this repository</span> : null}
+                    <input
+                      className="nf mono"
+                      type="password"
+                      autoComplete="off"
+                      placeholder={lovableSecret ? "Paste a new key to replace it" : "Lovable API key"}
+                      value={lovableKey}
+                      onChange={(e) => setLovableKey(e.target.value)}
+                      disabled={!repo}
+                      aria-label="Lovable API key"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <b>Published Lovable site</b>
+                    <small>luvhub reads the live site, the same render you converted here: HubSpot updates after you press Publish in Lovable (checked every hour and at every edit).</small>
+                  </div>
+                  <div className="sync-field">
+                    <input className="nf" type="url" placeholder="https://your-project.lovable.app" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Published site address" />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className={`inner sync-row ${repo ? "" : "dim"}`}>

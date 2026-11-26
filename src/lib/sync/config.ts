@@ -9,13 +9,19 @@ import { DEFAULT_PAGE_TYPE, type PageType, type ThemeModel } from "../converter/
 export interface LuvhubConfig {
   version: 1;
   /**
-   * "build": build the project in the repository (every Lovable edit). `outDir`
-   * is the static output (found automatically); `serveCommand` serves a
-   * server-rendered app instead, with {port} for the port (default: vite
-   * preview, then vite).
-   * "url": render the published site (changes after Publish in Lovable).
+   * Where the pages come from. The first two use Lovable's own render, the
+   * same one the dashboard converted:
+   * "lovable": the latest preview of the project (every edit), through the
+   * Lovable API with the LUVHUB_LOVABLE_API_KEY secret.
+   * "url": the published site (changes after Publish in Lovable).
+   * "build": builds the code in the repository instead (legacy: the result can
+   * differ from what Lovable shows). `outDir` is the static output;
+   * `serveCommand` serves a server-rendered app, with {port} for the port.
    */
-  source: { type: "build"; command?: string; outDir?: string; serveCommand?: string } | { type: "url"; url: string };
+  source:
+    | { type: "lovable"; projectId: string; parentOrigin: string }
+    | { type: "url"; url: string }
+    | { type: "build"; command?: string; outDir?: string; serveCommand?: string };
   routes: string[];
   theme: { name: string; label: string };
   /** HubSpot page type: "landing" pages (default) or website ("site") pages. */
@@ -45,8 +51,11 @@ export function parseConfig(text: string): LuvhubConfig {
   };
   if (c.version !== 1) fail('"version" must be 1.');
   const src = c.source as LuvhubConfig["source"] | undefined;
-  if (!src || (src.type !== "build" && src.type !== "url")) fail('"source.type" must be "build" or "url".');
+  if (!src || !["lovable", "url", "build"].includes(src.type)) fail('"source.type" must be "lovable", "url" or "build".');
   if (src!.type === "url" && !/^https?:\/\//.test(src!.url ?? "")) fail('"source.url" must be an http(s) address.');
+  if (src!.type === "lovable" && (!src!.projectId?.trim() || !/^https:\/\//.test(src!.parentOrigin ?? ""))) {
+    fail('"source.projectId" and an https "source.parentOrigin" are required.');
+  }
   if (!Array.isArray(c.routes) || c.routes.length === 0 || c.routes.some((r) => typeof r !== "string" || !ROUTE_RE.test(r))) {
     fail('"routes" must list paths like "/" or "/about".');
   }

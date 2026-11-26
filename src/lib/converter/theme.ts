@@ -68,6 +68,39 @@ function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+/**
+ * The source page's JavaScript doesn't come along, so its close buttons
+ * would do nothing. This restores the common one: a button that closes a
+ * fixed banner or popup (cookie notice "OK", "×", "Chiudi"…) hides it, and
+ * the choice is remembered on this browser.
+ */
+const BEHAVIOURS = `(function () {
+  var CLOSE = /^(ok|okay|accetto|accetta|accetta tutti|accept|accept all|rifiuta|decline|reject|chiudi|close|ho capito|got it|x|\\u00d7|\\u2715|\\u2716)$/i;
+  function layer(el) {
+    for (var e = el.parentElement; e && e !== document.body; e = e.parentElement) {
+      var p = getComputedStyle(e).position;
+      if (p === "fixed" || p === "sticky" || e.getAttribute("role") === "dialog") return e;
+    }
+    return null;
+  }
+  function key(box) { return "luvhub-closed:" + (box.getAttribute("aria-label") || box.textContent.trim().slice(0, 40)); }
+  function isClose(btn) {
+    if (btn.type === "submit" || btn.closest("form")) return false;
+    var t = (btn.textContent || "").trim(), a = btn.getAttribute("aria-label") || "";
+    return CLOSE.test(t) || /chiudi|close|dismiss|accett|accept|rifiut|reject/i.test(a);
+  }
+  document.querySelectorAll("button").forEach(function (btn) {
+    if (!isClose(btn)) return;
+    var box = layer(btn);
+    if (!box) return;
+    try { if (localStorage.getItem(key(box))) { box.style.display = "none"; return; } } catch (e) {}
+    btn.addEventListener("click", function () {
+      box.style.display = "none";
+      try { localStorage.setItem(key(box), "1"); } catch (e) {}
+    });
+  });
+})();`;
+
 function baseLayout(model: ThemeModel): string {
   return `<!--
   templateType: none
@@ -85,6 +118,7 @@ ${model.headLinks.map((l) => `    ${l}`).join("\n")}
   </head>
   <body${model.bodyAttrs ? ` ${model.bodyAttrs}` : ""}>
     {% block body %}{% endblock body %}
+    <script>${BEHAVIOURS}</script>
     {{ standard_footer_includes }}
   </body>
 </html>

@@ -73,7 +73,9 @@ The dashboard does it in one panel:
 
 1. **Connect GitHub** (OAuth, scopes `repo` and `workflow`).
 2. **Pick the repository.**
-3. **Choose when:** after every edit (the Action builds the project) or after Publish in Lovable (the Action reads the live site).
+3. **Lovable's render.** The Action always reads the page as Lovable renders it, the same render the dashboard converted, never a build of its own:
+   - converted from a Lovable project: paste a **Lovable API key** (*Workspace settings → API keys*), stored as the `LUVHUB_LOVABLE_API_KEY` secret. Each run asks Lovable for the preview of the latest edit;
+   - converted from a published URL: the Action reads the live site, on every push and every hour, so HubSpot follows each Publish in Lovable.
 4. **Paste a HubSpot private app token** (scopes `content` and `files`). It goes straight into the encrypted `LUVHUB_HUBSPOT_TOKEN` repository secret; luvhub doesn't keep it.
 
 luvhub then commits two files to the repository:
@@ -81,9 +83,9 @@ luvhub then commits two files to the repository:
 - `luvhub.json`: routes, theme name, excluded modules, edited titles and the HubSpot page ids. The Action updates the ids and the last sync after each run.
 - `.github/workflows/luvhub.yml`: runs on every push to the default branch and by hand from the Actions tab (with *force* to republish).
 
-Each run builds or opens the site with Chrome, converts it with the saved choices, and publishes only when something changed. The run summary links the HubSpot pages.
+Each run opens Lovable's render with Chrome, converts it with the saved choices, and publishes only when something changed. The run summary links the HubSpot pages.
 
-How the build is rendered:
+Older setups may still have `"source": {"type": "build"}`, which builds the code in the repository. Lovable serves some images from its own hosting, so a local build can miss them: press **Update sync** in the dashboard to switch to Lovable's render. How a build is rendered:
 
 - **Install** with the project's lockfile (bun for Lovable projects, npm, pnpm or yarn), falling back to `npm install --legacy-peer-deps`.
 - **Static builds** (`dist/`, `build/` or `out/` with an `index.html`) are served as files. Set `source.outDir` in `luvhub.json` for another folder.

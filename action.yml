@@ -9,6 +9,9 @@ inputs:
   hubspot-token:
     description: HubSpot private app token with the "content" and "files" scopes. Pass it from a repository secret.
     required: true
+  lovable-api-key:
+    description: Lovable API key, to render the project's latest preview (source "lovable" in luvhub.json). Pass it from a repository secret.
+    default: ""
   config:
     description: Path of the luvhub configuration file, relative to the repository root.
     default: luvhub.json
@@ -45,6 +48,7 @@ runs:
       shell: bash
       env:
         HUBSPOT_ACCESS_TOKEN: ${{ inputs.hubspot-token }}
+        LOVABLE_API_KEY: ${{ inputs.lovable-api-key }}
         LUVHUB_CONFIG: ${{ inputs.config }}
         LUVHUB_FORCE: ${{ inputs.force }}
       run: node "$GITHUB_ACTION_PATH/node_modules/tsx/dist/cli.mjs" "$GITHUB_ACTION_PATH/scripts/luvhub-sync.ts"

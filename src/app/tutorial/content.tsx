@@ -256,8 +256,8 @@ const it: Section[] = [
     body: (
       <>
         <p>
-          Una volta attivato, il sync è permanente: a ogni modifica in Lovable una GitHub Action nella repository del progetto ricostruisce il
-          sito e aggiorna le stesse pagine su HubSpot, titoli compresi. Non serve rilanciarlo a mano.
+          Una volta attivato, il sync è permanente: a ogni modifica in Lovable una GitHub Action nella repository del progetto legge la pagina
+          così come la mostra Lovable (lo stesso render della conversione) e aggiorna le stesse pagine su HubSpot, titoli compresi. Non serve rilanciarlo a mano.
         </p>
         <video className="tut-video" controls playsInline preload="metadata" poster="/tutorial/sync-tutorial.jpg" aria-label="Video: attivare il sync passo per passo (54 secondi)">
           <source src="/tutorial/sync-tutorial.mp4" type="video/mp4" />
@@ -280,7 +280,11 @@ const it: Section[] = [
           <li>In Lovable collega il progetto a GitHub (<i>GitHub → Connect project</i>).</li>
           <li>In luvhub converti il progetto, poi nel nodo <b>5 Sync</b> premi <b>Set up sync</b>.</li>
           <li>Scegli l&apos;account GitHub e la repository del progetto Lovable.</li>
-          <li>Scegli quando aggiornare: <b>Every edit</b> (consigliato) o <b>On publish</b>.</li>
+          <li>
+            Se hai convertito un progetto Lovable, incolla una <b>Lovable API key</b> (in Lovable: <i>Workspace settings → API keys</i>): serve a
+            chiedere a Lovable la preview dell&apos;ultima modifica. Se hai incollato l&apos;indirizzo del sito pubblicato, HubSpot si aggiorna dopo
+            ogni <b>Publish</b> in Lovable (controllo ogni ora).
+          </li>
           <li>Incolla il token della private app <b>luvhub</b> e premi <b>Turn on sync</b>.</li>
         </ol>
         <p>
@@ -540,8 +544,8 @@ const en: Section[] = [
     body: (
       <>
         <p>
-          Once it is on, sync is permanent: on every Lovable edit a GitHub Action in the project&apos;s repository rebuilds the site and
-          updates the same HubSpot pages, titles included. You don&apos;t run it by hand.
+          Once it is on, sync is permanent: on every Lovable edit a GitHub Action in the project&apos;s repository reads the page as Lovable
+          renders it (the same render as the conversion) and updates the same HubSpot pages, titles included. You don&apos;t run it by hand.
         </p>
         <video className="tut-video" controls playsInline preload="metadata" poster="/tutorial/sync-tutorial.jpg" aria-label="Video: turning on sync step by step (54 seconds)">
           <source src="/tutorial/sync-tutorial.mp4" type="video/mp4" />
@@ -564,7 +568,11 @@ const en: Section[] = [
           <li>In Lovable connect the project to GitHub (<i>GitHub → Connect project</i>).</li>
           <li>In luvhub convert the project, then in node <b>5 Sync</b> click <b>Set up sync</b>.</li>
           <li>Pick the GitHub account and the Lovable project&apos;s repository.</li>
-          <li>Choose when to update: <b>Every edit</b> (recommended) or <b>On publish</b>.</li>
+          <li>
+            If you converted a Lovable project, paste a <b>Lovable API key</b> (in Lovable: <i>Workspace settings → API keys</i>): luvhub uses it to
+            ask Lovable for the preview of your latest edit. If you pasted the published site&apos;s address, HubSpot updates after each
+            <b>Publish</b> in Lovable (checked every hour).
+          </li>
           <li>Paste the token of the <b>luvhub</b> private app and click <b>Turn on sync</b>.</li>
         </ol>
         <p>

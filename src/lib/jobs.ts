@@ -15,7 +15,7 @@ export interface Job {
   source: { kind: "url" | "lovable"; label: string; url?: string; projectId?: string };
   model: ThemeModel;
   /** Set when the dashboard set up the GitHub Action for this conversion. */
-  automation?: { repo: string; branch: string; source: "build" | "url"; at: string; actionsUrl: string };
+  automation?: { repo: string; branch: string; source: "lovable" | "build" | "url"; at: string; actionsUrl: string };
 }
 
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;

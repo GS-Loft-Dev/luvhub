@@ -6,6 +6,7 @@ import { convertPages } from "../converter";
 import { writeTheme } from "../converter/theme";
 import type { RenderedPage, ThemeModel } from "../converter/types";
 import { connectionFromToken } from "../integrations/hubspot";
+import { createEmbedUrl } from "../integrations/lovable";
 import { publishToHubSpot, type PublishResult } from "../publish";
 import { renderRoutes } from "../render";
 import { applyConfig, recordPages, type LuvhubConfig } from "./config";
@@ -18,9 +19,13 @@ export interface SyncOptions {
   config: LuvhubConfig;
   /** HubSpot private app token. */
   token: string;
+  /** Lovable API key, for the "lovable" source. */
+  lovableKey?: string;
   /** Publish even when nothing changed since the last sync. */
   force?: boolean;
   log?: (line: string) => void;
+  /** Tests: extra Chrome flags. */
+  chromeArgs?: string[];
   /** Tests: skip install and build, serve this folder as is. */
   prebuiltDir?: string;
 }
@@ -95,7 +100,7 @@ export function fingerprint(model: ThemeModel, assetBytes: Map<string, Buffer>):
 }
 
 /**
- * One sync: get the site (build it or use the published URL), render it,
+ * One sync: get the site (Lovable's preview, the published URL or a local build), render it,
  * convert with the saved choices, and publish when something changed.
  */
 export async function runSync(opts: SyncOptions): Promise<SyncResult> {
@@ -103,7 +108,16 @@ export async function runSync(opts: SyncOptions): Promise<SyncResult> {
   const { config: c, cwd } = opts;
 
   let rendered: RenderedPage[];
-  if (c.source.type === "url") {
+  if (c.source.type === "lovable") {
+    const key = opts.lovableKey?.trim();
+    if (!key) throw new Error("The LUVHUB_LOVABLE_API_KEY secret is empty: save a Lovable API key again from the luvhub dashboard (node 5 Sync).");
+    const { projectId, parentOrigin } = c.source;
+    const url = await createEmbedUrl({ kind: "key", key }, projectId, parentOrigin).catch((e: unknown) => {
+      throw new Error(`Lovable didn't give a preview of project ${projectId} (${(e as Error).message}). Check the LUVHUB_LOVABLE_API_KEY secret.`);
+    });
+    log(`Rendering Lovable's latest preview of the project (${c.routes.join(", ")})`);
+    rendered = await renderRoutes({ url, routes: c.routes, embedParentOrigin: parentOrigin, chromeArgs: opts.chromeArgs });
+  } else if (c.source.type === "url") {
     log(`Rendering ${c.source.url} (${c.routes.join(", ")})`);
     rendered = await renderRoutes({ url: c.source.url, routes: c.routes });
   } else {

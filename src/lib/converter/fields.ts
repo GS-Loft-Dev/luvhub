@@ -212,12 +212,16 @@ function imageField($: CheerioAPI, el: Element, scope: Scope, tokens: Tokens): v
   $el.attr("src", tokens.add(`{{ ${ref}.src }}`));
   $el.attr("alt", tokens.add(`{{ ${ref}.alt|escape }}`));
   $el.removeAttr("width").removeAttr("height").removeAttr("loading");
+  // Size attributes only where the source had them: Lovable usually sizes
+  // images with CSS (e.g. h-6 alone), and a natural width="1920" would then
+  // stretch the image.
+  const sized = attrs.width !== undefined || attrs.height !== undefined;
   $el.attr(
     "data-h2h-dim",
     tokens.add(
-      `{% if ${ref}.width %}width="{{ ${ref}.width }}"{% endif %} ` +
-        `{% if ${ref}.height %}height="{{ ${ref}.height }}"{% endif %} ` +
-        `{% if ${ref}.loading != "disabled" %}loading="{{ ${ref}.loading }}"{% endif %}`,
+      (sized
+        ? `{% if ${ref}.width %}width="{{ ${ref}.width }}"{% endif %} ` + `{% if ${ref}.height %}height="{{ ${ref}.height }}"{% endif %} `
+        : "") + `{% if ${ref}.loading != "disabled" %}loading="{{ ${ref}.loading }}"{% endif %}`,
     ),
   );
 }

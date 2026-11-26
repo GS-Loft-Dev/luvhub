@@ -10,7 +10,7 @@ import { applyConfig, configFromModel, parseConfig, recordPages, serializeConfig
 import { serveCommands } from "../src/lib/sync/app-server";
 import { installCommands, runSync } from "../src/lib/sync/run";
 import { serveStatic } from "../src/lib/sync/serve";
-import { SECRET_NAME, workflowYaml } from "../src/lib/sync/workflow";
+import { LOVABLE_SECRET_NAME, SECRET_NAME, workflowYaml } from "../src/lib/sync/workflow";
 
 const html = readFileSync(join(__dirname, "fixtures/landing.html"), "utf8");
 const page = (title = "Acme Fitness") => ({
@@ -91,6 +91,13 @@ describe("luvhub.json", () => {
     expect(recordPages(c, model).pages["/"]).toEqual({ hubspotPageId: "9" });
   });
 
+  it("reads the Lovable source: project and an https parent origin", () => {
+    const base = { version: 1, routes: ["/"], theme: { name: "acme" } };
+    const ok = parseConfig(JSON.stringify({ ...base, source: { type: "lovable", projectId: "p1", parentOrigin: "https://luvhub.example" } }));
+    expect(ok.source).toEqual({ type: "lovable", projectId: "p1", parentOrigin: "https://luvhub.example" });
+    expect(() => parseConfig(JSON.stringify({ ...base, source: { type: "lovable", projectId: "p1", parentOrigin: "http://x" } }))).toThrow("parentOrigin");
+  });
+
   it("rejects malformed files with a readable message", () => {
     expect(() => parseConfig("{")).toThrow("not valid JSON");
     expect(() => parseConfig(JSON.stringify({ version: 1, source: { type: "build" }, routes: ["about"], theme: { name: "x" } }))).toThrow('"routes"');
@@ -107,6 +114,12 @@ describe("workflow", () => {
     expect(yml).toContain(`hubspot-token: \${{ secrets.${SECRET_NAME} }}`);
     expect(yml).toContain("workflow_dispatch:");
     expect(yml).toContain("contents: write");
+    expect(yml).toContain(`lovable-api-key: \${{ secrets.${LOVABLE_SECRET_NAME} }}`);
+    expect(yml).not.toContain("schedule:");
+  });
+
+  it("also checks every hour for the published site", () => {
+    expect(workflowYaml({ branch: "main", actionRef: "x@v1", hourly: true })).toContain('schedule:\n    - cron: "17 * * * *"');
   });
 });
 
@@ -195,5 +208,46 @@ describe.skipIf(!hasChrome)("runSync end to end", () => {
     const patch = calls.find((c) => c.method === "PATCH" && c.url.endsWith("/landing-pages/501"));
     expect(JSON.parse(patch!.body!)).toMatchObject({ name: "Spa Test", templatePath: "spa/templates/home.html", widgets: {}, layoutSections: {} });
     expect(calls.some((c) => c.method === "POST" && c.url.endsWith("/landing-pages"))).toBe(false);
+  }, 90_000);
+
+  it("renders Lovable's own preview of the project for the lovable source", async () => {
+    const site = await serveStatic(join(__dirname, "fixtures/site"));
+    const realFetch = globalThis.fetch;
+    const asked: { url: string; key: string | null; body?: string }[] = [];
+    vi.stubGlobal("fetch", async (input: string | URL, init: RequestInit = {}) => {
+      const url = String(input);
+      if (url.startsWith("https://api.lovable.dev")) {
+        asked.push({ url, key: new Headers(init.headers).get("Lovable-API-Key"), body: init.body as string });
+        return Response.json({ embed_url: site.url });
+      }
+      if (url.startsWith("https://api.hubapi.com")) {
+        if (url.endsWith("/account-info/v3/details")) return Response.json({ portalId: 42 });
+        if (url.endsWith("/files/v3/files")) return Response.json({ url: "https://cdn.example/x.png" });
+        if (url.endsWith("/cms/v3/pages/landing-pages")) return Response.json({ id: "601" });
+        return new Response("", { status: 200 });
+      }
+      return realFetch(input, init);
+    });
+    try {
+      const config: LuvhubConfig = {
+        version: 1,
+        // http here: the test site is plain http, and an https host page wouldn't frame it.
+        source: { type: "lovable", projectId: "proj-1", parentOrigin: "http://luvhub.example" },
+        routes: ["/"],
+        theme: { name: "spa", label: "Spa" },
+        pages: {},
+        exclude: [],
+      };
+      await expect(runSync({ cwd: __dirname, token: "pat", config, log: () => undefined })).rejects.toThrow("LUVHUB_LOVABLE_API_KEY");
+      // The fixture server is on loopback; real Lovable previews are public.
+      const chromeArgs = ["--disable-features=LocalNetworkAccessChecks"];
+      const r = await runSync({ cwd: __dirname, token: "pat", lovableKey: "lov-key", config, chromeArgs, log: () => undefined });
+      expect(r.status).toBe("published");
+      expect(r.model.pages[0].label).toBe("Spa Test");
+      expect(asked[0]).toMatchObject({ url: "https://api.lovable.dev/v1/projects/proj-1/embed-url", key: "lov-key" });
+      expect(JSON.parse(asked[0].body!)).toEqual({ parent_origin: "http://luvhub.example" });
+    } finally {
+      await site.close();
+    }
   }, 90_000);
 });

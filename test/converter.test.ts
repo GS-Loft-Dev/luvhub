@@ -66,6 +66,16 @@ describe("field extraction", () => {
     expect(hero.hubl).toContain('src="{{ module.image_1.src }}"');
   });
 
+  it("doesn't add a width to images Lovable sizes with CSS only", () => {
+    const logo = convertPages(
+      [{ ...page, html: '<div id="root"><header><img src="https://acme.lovable.app/logo.png" alt="Logo" class="h-6" data-h2h-w="1920" data-h2h-h="376"></header></div>', assets: [] }],
+      { themeName: "logo" },
+    );
+    const hubl = logo.modules.map((m) => m.hubl).join("\n");
+    expect(hubl).toContain('class="h-6"');
+    expect(hubl).not.toMatch(/width="/);
+  });
+
   it("removes the opacity:0 left by scroll animations", () => {
     expect(hero.hubl).not.toMatch(/opacity:\s*0/);
   });
@@ -111,6 +121,13 @@ describe("field extraction", () => {
 
 describe("theme writer", () => {
   const files = writeTheme(model, { kind: "theme" }, new Map([["a1", Buffer.from("jpg")]]));
+
+  it("makes the close buttons of banners and popups work without the source's JavaScript", () => {
+    const base = String(files.get("templates/layouts/base.html"));
+    expect(base).toContain("<script>(function () {");
+    expect(base).toMatch(/accetta/);
+    expect(base.indexOf("<script>")).toBeLessThan(base.indexOf("standard_footer_includes"));
+  });
 
   it("writes a complete theme", () => {
     expect([...files.keys()].sort()).toEqual([
