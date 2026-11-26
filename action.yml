@@ -31,6 +31,11 @@ runs:
       with:
         node-version: 22
 
+    # Lovable projects usually ship a bun lockfile: install with bun so the
+    # exact locked versions are used (npm stays as the fallback).
+    - uses: oven-sh/setup-bun@v2
+      if: ${{ hashFiles('**/bun.lockb', '**/bun.lock') != '' }}
+
     - name: Install luvhub
       shell: bash
       run: npm ci --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"

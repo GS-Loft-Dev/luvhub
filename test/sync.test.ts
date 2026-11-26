@@ -7,7 +7,7 @@ import { writeTheme } from "../src/lib/converter/theme";
 import { sealSecret } from "../src/lib/integrations/github";
 import { findChrome } from "../src/lib/render";
 import { applyConfig, configFromModel, parseConfig, recordPages, serializeConfig, type LuvhubConfig } from "../src/lib/sync/config";
-import { runSync } from "../src/lib/sync/run";
+import { installCommands, runSync } from "../src/lib/sync/run";
 import { serveStatic } from "../src/lib/sync/serve";
 import { SECRET_NAME, workflowYaml } from "../src/lib/sync/workflow";
 
@@ -97,6 +97,19 @@ describe("workflow", () => {
     expect(yml).toContain(`hubspot-token: \${{ secrets.${SECRET_NAME} }}`);
     expect(yml).toContain("workflow_dispatch:");
     expect(yml).toContain("contents: write");
+  });
+});
+
+describe("install", () => {
+  const pick = (...files: string[]) => installCommands("/x", (f) => files.includes(f));
+  it("uses the project's own lockfile and always falls back to npm with --legacy-peer-deps", () => {
+    expect(pick("bun.lockb")[0]).toBe("bun install --frozen-lockfile");
+    expect(pick("bun.lock")[1]).toBe("bun install");
+    expect(pick("package-lock.json", "bun.lockb")[0]).toBe("npm ci --no-audit --no-fund");
+    expect(pick()[0]).toBe("npm install --no-audit --no-fund");
+    for (const set of [pick(), pick("bun.lockb"), pick("yarn.lock"), pick("pnpm-lock.yaml"), pick("package-lock.json")]) {
+      expect(set.at(-1)).toBe("npm install --no-audit --no-fund --legacy-peer-deps");
+    }
   });
 });
 

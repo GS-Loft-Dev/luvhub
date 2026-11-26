@@ -41,12 +41,32 @@ function run(cmd: string, cwd: string, log: (s: string) => void): Promise<void> 
   });
 }
 
-/** Lovable projects are Vite apps; pick the install command from the lockfile. */
-function installCommand(cwd: string): string {
-  if (existsSync(join(cwd, "package-lock.json"))) return "npm ci --no-audit --no-fund";
-  if (existsSync(join(cwd, "pnpm-lock.yaml"))) return "npx --yes pnpm install --frozen-lockfile";
-  if (existsSync(join(cwd, "yarn.lock"))) return "npx --yes yarn install --frozen-lockfile";
-  return "npm install --no-audit --no-fund";
+/**
+ * Install commands to try in order, picked from the lockfile. Lovable projects
+ * usually ship a bun lockfile and no package-lock.json; npm's resolver can then
+ * crash ("Cannot read properties of null (reading 'edgesOut')"), so every
+ * choice ends with npm and --legacy-peer-deps as a fallback.
+ */
+export function installCommands(cwd: string, has: (file: string) => boolean = (f) => existsSync(join(cwd, f))): string[] {
+  const npmFallback = "npm install --no-audit --no-fund --legacy-peer-deps";
+  if (has("package-lock.json")) return ["npm ci --no-audit --no-fund", npmFallback];
+  if (has("bun.lockb") || has("bun.lock")) return ["bun install --frozen-lockfile", "bun install", npmFallback];
+  if (has("pnpm-lock.yaml")) return ["npx --yes pnpm install --frozen-lockfile", npmFallback];
+  if (has("yarn.lock")) return ["npx --yes yarn install --frozen-lockfile", npmFallback];
+  return ["npm install --no-audit --no-fund", npmFallback];
+}
+
+async function install(cwd: string, log: (s: string) => void): Promise<void> {
+  const commands = installCommands(cwd);
+  for (const [i, cmd] of commands.entries()) {
+    try {
+      await run(cmd, cwd, log);
+      return;
+    } catch (e) {
+      if (i === commands.length - 1) throw e;
+      log(`${(e as Error).message} Trying "${commands[i + 1]}".`);
+    }
+  }
 }
 
 function findOutDir(cwd: string, configured?: string): string {
@@ -86,7 +106,7 @@ export async function runSync(opts: SyncOptions): Promise<SyncResult> {
   } else {
     let dir = opts.prebuiltDir;
     if (!dir) {
-      await run(installCommand(cwd), cwd, log);
+      await install(cwd, log);
       await run(c.source.command?.trim() || "npm run build", cwd, log);
       dir = findOutDir(cwd, c.source.outDir);
     }
